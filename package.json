@@ -4,8 +4,7 @@
   "description": "A video summary of A Dog Named Money",
   "scripts": {
     "start": "remotion preview",
-    "render": "remotion render",
-    "generate-topics": "node scripts/generate-topics.mjs"
+    "render": "remotion render"
   },
   "dependencies": {
     "@remotion/fonts": "4.0.410",
