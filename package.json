@@ -7,7 +7,11 @@
     "render": "remotion render"
   },
   "dependencies": {
+    "@google/genai": "^1.40.0",
     "@remotion/fonts": "4.0.410",
+    "@remotion/transitions": "4.0.410",
+    "dotenv": "^17.2.4",
+    "edge-tts": "^1.0.1",
     "lucide-react": "^0.263.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

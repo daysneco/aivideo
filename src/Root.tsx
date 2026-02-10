@@ -1,9 +1,7 @@
 import React from 'react';
 import { Composition, staticFile } from 'remotion';
-import { BookComposition } from './BookComposition';
+import { BookComposition, TRANSITION_FRAMES } from './BookComposition';
 import { bookScript } from './data/bookScript';
-
-import { AbsoluteFill } from 'remotion';
 
 const GlobalStyle = () => {
   const fontUrl = staticFile('LXGWWenKai.ttf');
@@ -31,7 +29,7 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="BookVideo"
         component={BookComposition}
-        durationInFrames={bookScript.totalDuration}
+        durationInFrames={bookScript.totalDuration - (bookScript.scenes.length - 1) * TRANSITION_FRAMES}
         fps={30}
         width={1920}
         height={1080}
