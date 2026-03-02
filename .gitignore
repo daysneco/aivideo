@@ -7,3 +7,7 @@ venv/
 .DS_Store
 *.local
 output
+*.mp3
+*.wav
+*.png
+temp

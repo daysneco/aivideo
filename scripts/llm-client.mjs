@@ -2,8 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 import 'dotenv/config';
 
 // Models
-const MODEL_PRO = 'gemini-3-pro-preview';
-const MODEL_FLASH = 'gemini-3-flash-preview';
+const MODEL_PRO = process.env.MODEL_PRO || 'gemini-2.0-pro-exp-02-05';
+const MODEL_FLASH = process.env.MODEL_FLASH || 'gemini-2.0-flash';
 
 /**
  * Initialize Gemini Client

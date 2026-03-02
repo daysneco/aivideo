@@ -27,14 +27,26 @@ function getAudioDuration(filePath) {
 }
 
 function main() {
-  let content = readFileSync(SCRIPT_PATH, 'utf-8');
+  const content = readFileSync(SCRIPT_PATH, 'utf-8');
 
   // Parse bookScript
   const startIdx = content.indexOf('export const bookScript: BookScript = ');
+  if (startIdx === -1) {
+    console.error('Could not find bookScript export in bookScript.ts');
+    process.exit(1);
+  }
+
   const jsonStart = startIdx + 'export const bookScript: BookScript = '.length;
   const jsonEnd = content.lastIndexOf(';');
   const jsonStr = content.substring(jsonStart, jsonEnd).trim();
-  const scriptData = eval(`(${jsonStr})`);
+  
+  let scriptData;
+  try {
+    scriptData = eval(`(${jsonStr})`);
+  } catch (e) {
+    console.error('Failed to parse bookScript.ts content:', e.message);
+    process.exit(1);
+  }
 
   let updated = 0;
   let totalDuration = 0;
@@ -63,26 +75,8 @@ function main() {
     const diffStr = diff > 0 ? `+${diff}` : `${diff}`;
 
     if (oldFrames !== newFrames) {
-      // Replace in file content
-      const oldDurationStr = `"durationInFrames": ${oldFrames}`;
-      // Find this specific scene's durationInFrames by locating its id first
-      const sceneIdPos = content.indexOf(`"id": "${scene.id}"`);
-      const durationPos = content.indexOf('"durationInFrames":', sceneIdPos);
-      const lineEnd = content.indexOf('\n', durationPos);
-      const oldLine = content.substring(durationPos, lineEnd);
-      const newLine = `"durationInFrames": ${newFrames}`;
-      content = content.substring(0, durationPos) + newLine + content.substring(lineEnd);
-
-      // Also update durationSeconds
+      scene.durationInFrames = newFrames;
       scene.durationSeconds = parseFloat((newFrames / FPS).toFixed(1));
-      const durationSecsPos = content.indexOf('"durationSeconds":', sceneIdPos);
-      if (durationSecsPos !== -1 && durationSecsPos < durationPos + 200) {
-        const secsLineEnd = content.indexOf('\n', durationSecsPos);
-        content = content.substring(0, durationSecsPos) +
-          `"durationSeconds": ${scene.durationSeconds},` +
-          content.substring(secsLineEnd);
-      }
-
       updated++;
     }
 
@@ -92,13 +86,16 @@ function main() {
     );
   }
 
-  // Update totalDuration
-  content = content.replace(
-    /"totalDuration": \d+/,
-    `"totalDuration": ${totalDuration}`
-  );
+  // Update totalDuration in object
+  scriptData.totalDuration = totalDuration;
 
-  writeFileSync(SCRIPT_PATH, content, 'utf-8');
+  // Write back the whole file
+  const newFileContent = `import { BookScript } from '../types/book';
+
+export const bookScript: BookScript = ${JSON.stringify(scriptData, null, 2)};
+`;
+
+  writeFileSync(SCRIPT_PATH, newFileContent, 'utf-8');
 
   console.log(`\n✨ Updated ${updated} scenes. Total duration: ${totalDuration} frames (${(totalDuration / FPS).toFixed(1)}s)`);
 }

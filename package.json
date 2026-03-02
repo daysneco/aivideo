@@ -1,21 +1,41 @@
 {
-  "name": "money-dog-video",
+  "name": "naval-ravikant-video",
   "version": "1.0.0",
-  "description": "A video summary of A Dog Named Money",
+  "description": "A video summary of The Almanack of Naval Ravikant",
   "scripts": {
     "start": "remotion preview",
-    "render": "remotion render"
+    "render": "remotion render",
+    "create-book-video": "node scripts/create-book-video.mjs",
+    "generate-cover": "node scripts/generate-cover.mjs",
+    "prepare-upload": "node scripts/prepare-upload.mjs",
+    "crop-book-cover": "node scripts/crop-book-cover.mjs",
+    "generate-highlight-keywords": "node scripts/generate-highlight-keywords.mjs",
+    "generate-xiaohongshu": "node scripts/generate-xiaohongshu.mjs",
+    "generate-xiaohongshu-cover": "node scripts/generate-xiaohongshu-cover.mjs",
+    "demo-fetch-cover": "node scripts/demo-fetch-book-cover.mjs",
+    "generate-xiaogouqianqian-cover": "node scripts/generate-xiaogouqianqian-cover.mjs",
+    "fetch-xiaogouqianqian-by-id": "node scripts/fetch-xiaogouqianqian-by-id.mjs",
+    "generate-xiaohongshu-3x4-cover": "node scripts/generate-xiaohongshu-3x4-cover.mjs",
+    "generate-xiaohongshu-3x4-cover-auto": "node scripts/generate-xiaohongshu-3x4-cover-auto.mjs",
+    "generate-cover-by-title": "node scripts/generate-cover-by-title.mjs",
+    "fetch-douban-book": "node scripts/fetch-douban-book-universal.mjs",
+    "fetch-douban-book-simple": "node scripts/fetch-douban-book-simple.mjs",
+    "test-workflow": "node scripts/test-full-workflow.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.40.0",
     "@remotion/fonts": "4.0.410",
     "@remotion/transitions": "4.0.410",
+    "cheerio": "^1.2.0",
     "dotenv": "^17.2.4",
     "edge-tts": "^1.0.1",
     "lucide-react": "^0.263.1",
+    "node-fetch": "^3.3.2",
+    "openai": "^6.17.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "remotion": "^4.0.410"
+    "remotion": "^4.0.410",
+    "sharp": "^0.33.5"
   },
   "devDependencies": {
     "@remotion/cli": "^4.0.410",

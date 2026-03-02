@@ -46,12 +46,7 @@ export const BookComposition: React.FC = () => {
   const scenes = bookScript.scenes;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0a0a0f' }}>
-      <ThemeNavBar
-        themes={bookScript.themes}
-        scenes={scenes}
-        transitionFrames={TRANSITION_FRAMES}
-      />
+    <AbsoluteFill style={{ backgroundColor: '#000000' }}>
       <TransitionSeries>
         {scenes.map((item, index) => (
           <React.Fragment key={item.id}>
@@ -62,7 +57,7 @@ export const BookComposition: React.FC = () => {
               const t = getTransition(item.theme, scenes[index + 1].theme, index);
               return (
                 <TransitionSeries.Transition
-                  presentation={t.presentation}
+                  presentation={t.presentation as any}
                   timing={t.timing}
                 />
               );

@@ -1,127 +1,234 @@
 #!/usr/bin/env node
 import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
+
+function writeProgress(current, total) {
+  const f = process.env.VIDEO_PROGRESS_FILE;
+  const step = process.env.VIDEO_PROGRESS_STEP || 'Audio';
+  if (!f) return;
+  try {
+    writeFileSync(f, `[${new Date().toLocaleTimeString()}] ${step}... ${current}/${total}\n`, 'utf-8');
+  } catch (_) {}
+}
 import { fileURLToPath } from 'url';
-import { GoogleGenAI } from '@google/genai';
+import { createHmac, randomUUID } from 'crypto';
 import { execSync } from 'child_process';
+import 'dotenv/config';
+import OpenAI from 'openai';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const AUDIO_DIR = join(__dirname, '../public/audio');
+const SCRIPT_PATH = join(__dirname, '../src/data/bookScript.ts');
+const CONFIG_PATH = join(__dirname, '../src/config.ts');
 
-// Gemini TTS configuration
-const VOICE = 'Achernar';  // Soft, gentle female voice
-const MODEL = 'gemini-2.5-flash-preview-tts';
+// Helper to get config from TS file (since we're in CJS/MJS without ts-node)
+function getConfig() {
+  const content = readFileSync(CONFIG_PATH, 'utf-8');
+  const speedMatch = content.match(/AUDIO_SPEED:\s*['"](.*?)['"]/);
+  return {
+    AUDIO_SPEED: speedMatch ? speedMatch[1] : '+25%'
+  };
+}
+const config = getConfig();
 
-// Director's notes for consistent book narrator style
-const NARRATOR_PROMPT = `# AUDIO PROFILE: 小雨
-## "温暖的讲书人"
-
-### DIRECTOR'S NOTES
-Style: 温暖亲切的女性讲书人，像在和好朋友分享一本有趣的书。声音柔和自然，带有微笑感，让听众感到舒适放松。
-Pacing: 语速适中偏慢，节奏平稳舒缓，重点词语略微放慢强调。段落之间自然停顿。
-Accent: 标准普通话，清晰自然。
-
-### TRANSCRIPT
-`;
+// Configuration
+const PROVIDER = process.env.TTS_PROVIDER || 'wangwang';
+const WANGWANG_VOICE = 'zh-CN-XiaochenNeural'; // 晓辰女声 
 
 // Ensure audio directory exists
 if (!existsSync(AUDIO_DIR)) {
   mkdirSync(AUDIO_DIR, { recursive: true });
 }
 
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  console.error('❌ GEMINI_API_KEY not set');
-  process.exit(1);
-}
+// Initialize OpenAI (fallback)
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || 'sk-placeholder', 
+});
 
-const ai = new GoogleGenAI({ apiKey });
-
-async function generateSceneAudio(scene, index, total) {
-  const pcmPath = join(AUDIO_DIR, `${scene.id}.pcm`);
-  const wavPath = join(AUDIO_DIR, `${scene.id}.wav`);
-
-  console.log(`[${index + 1}/${total}] Generating: ${scene.id}...`);
-
+async function generateWithOpenAI(text, outputPath) {
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: [{ parts: [{ text: NARRATOR_PROMPT + scene.narration }] }],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: VOICE },
-          },
-        },
-      },
+    const mp3 = await openai.audio.speech.create({
+      model: "tts-1",
+      voice: "onyx",
+      input: text,
     });
-
-    const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!data) {
-      console.error(`  ✗ No audio data returned`);
-      return false;
-    }
-
-    // Save PCM, then convert to WAV
-    const pcmBuffer = Buffer.from(data, 'base64');
-    writeFileSync(pcmPath, pcmBuffer);
-    execSync(`ffmpeg -y -f s16le -ar 24000 -ac 1 -i "${pcmPath}" "${wavPath}" 2>/dev/null`);
-    unlinkSync(pcmPath);
-
-    console.log(`  ✓ ${scene.id}.wav (${(pcmBuffer.length / 1024).toFixed(0)} KB)`);
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+    // Convert mp3 buffer to wav using ffmpeg via temp file
+    const tempMp3 = outputPath.replace('.wav', '.temp.mp3');
+    writeFileSync(tempMp3, buffer);
+    execSync(`ffmpeg -y -i "${tempMp3}" -ar 24000 -ac 1 "${outputPath}" 2>/dev/null`);
+    unlinkSync(tempMp3);
     return true;
-  } catch (e) {
-    console.error(`  ✗ Error: ${e.message}`);
+  } catch (error) {
+    console.error('OpenAI TTS failed:', error.message);
     return false;
   }
 }
 
-async function generateAllAudio(scenes) {
-  console.log(`\n🎙️  Audio Generation (Gemini TTS)`);
-  console.log(`   Scenes: ${scenes.length}`);
-  console.log(`   Voice: ${VOICE}`);
-  console.log(`   Model: ${MODEL}`);
-  console.log(`   Output: ${AUDIO_DIR}\n`);
+// ---- WangWang / Edge TTS Logic ----
 
-  const startTime = Date.now();
-  let success = 0;
+let tokenInfo = { endpoint: null, token: null, expiredAt: null };
+const TOKEN_REFRESH_BEFORE_EXPIRY = 3 * 60;
 
-  for (let i = 0; i < scenes.length; i++) {
-    const ok = await generateSceneAudio(scenes[i], i, scenes.length);
-    if (ok) success++;
-    // Small delay to avoid rate limiting
-    if (i < scenes.length - 1) {
-      await new Promise(r => setTimeout(r, 1000));
-    }
-  }
+function uuid() { return randomUUID().replace(/-/g, ""); }
+function dateFormat() { return (new Date()).toUTCString().replace(/GMT/, "").trim().toLowerCase() + " gmt"; }
+function base64ToBytes(base64) { return Buffer.from(base64, 'base64'); }
+function bytesToBase64(bytes) { return bytes.toString('base64'); }
+function hmacSha256(key, data) { return createHmac('sha256', key).update(data).digest(); }
 
-  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`\n✨ ${success}/${scenes.length} audio files generated in ${duration}s!`);
+async function sign(urlStr) {
+    const url = urlStr.split("://")[1];
+    const encodedUrl = encodeURIComponent(url);
+    const uuidStr = uuid();
+    const formattedDate = dateFormat();
+    const bytesToSign = `MSTranslatorAndroidApp${encodedUrl}${formattedDate}${uuidStr}`.toLowerCase();
+    const decode = base64ToBytes("oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw==");
+    const signData = hmacSha256(decode, bytesToSign);
+    const signBase64 = bytesToBase64(signData);
+    return `MSTranslatorAndroidApp::${signBase64}::${formattedDate}::${uuidStr}`;
 }
 
-// Parse bookScript.ts and run
-async function main() {
-  // Support --count=N to limit scenes
-  const countArg = process.argv.find(a => a.startsWith('--count='));
-  const maxCount = countArg ? parseInt(countArg.split('=')[1]) : Infinity;
+async function getEndpoint() {
+    const now = Date.now() / 1000;
+    if (tokenInfo.token && tokenInfo.expiredAt && now < tokenInfo.expiredAt - TOKEN_REFRESH_BEFORE_EXPIRY) {
+        return tokenInfo.endpoint;
+    }
+    const endpointUrl = "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0";
+    const clientId = uuid();
+    try {
+        const signature = await sign(endpointUrl);
+        const response = await fetch(endpointUrl, {
+            method: "POST",
+            headers: {
+                "Accept-Language": "zh-Hans",
+                "X-ClientVersion": "4.0.530a 5fe1dc6c",
+                "X-UserId": "0f04d16a175c411e",
+                "X-HomeGeographicRegion": "zh-Hans-CN",
+                "X-ClientTraceId": clientId,
+                "X-MT-Signature": signature,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0",
+                "Content-Type": "application/json; charset=utf-8",
+                "Content-Length": "0",
+                "Accept-Encoding": "gzip"
+            }
+        });
+        if (!response.ok) throw new Error(`Get endpoint failed: ${response.status} ${await response.text()}`);
+        const data = await response.json();
+        const jwt = data.t.split(".")[1];
+        const decodedJwt = JSON.parse(Buffer.from(jwt, 'base64').toString());
+        tokenInfo = { endpoint: data, token: data.t, expiredAt: decodedJwt.exp };
+        return data;
+    } catch (error) {
+        console.error("Get endpoint failed:", error);
+        if (tokenInfo.token) return tokenInfo.endpoint;
+        throw error;
+    }
+}
 
+function escapeXmlText(text) {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+function getSsml(text, voiceName, rate, pitch, volume, style, slien = 0) {
+    const escapedText = escapeXmlText(text);
+    let slien_str = slien > 0 ? `<break time="${slien}ms" />` : '';
+    return `<speak xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" version="1.0" xml:lang="zh-CN"> 
+                <voice name="${voiceName}"> 
+                    <mstts:express-as style="${style}"  styledegree="2.0" role="default" > 
+                        <prosody rate="${rate}" pitch="${pitch}" volume="${volume}">${escapedText}</prosody> 
+                    </mstts:express-as> 
+                    ${slien_str}
+                </voice> 
+            </speak>`;
+}
+
+async function generateWithWangWang(scene) {
+    const endpoint = await getEndpoint();
+    const url = `https://${endpoint.r}.tts.speech.microsoft.com/cognitiveservices/v1`;
+    const ssml = getSsml(scene.narration, WANGWANG_VOICE, config.AUDIO_SPEED, '+0Hz', '+0%', 'general');
+    
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Authorization": endpoint.t,
+            "Content-Type": "application/ssml+xml",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0",
+            "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3"
+        },
+        body: ssml
+    });
+
+    if (!response.ok) throw new Error(`Edge TTS API Error: ${response.status} ${await response.text()}`);
+    return Buffer.from(await response.arrayBuffer());
+}
+
+async function generateSceneAudio(scene, index, total) {
+  const wavPath = join(AUDIO_DIR, `${scene.id}.wav`);
+  const mp3Path = join(AUDIO_DIR, `${scene.id}.mp3`);
+
+  if (existsSync(wavPath)) {
+    console.log(`[${index + 1}/${total}] Skipping existing: ${scene.id}`);
+    return true;
+  }
+
+  console.log(`[${index + 1}/${total}] Generating: ${scene.id}...`);
+
+  // Try WangWang
   try {
-    const scriptPath = join(__dirname, '../src/data/bookScript.ts');
-    const content = readFileSync(scriptPath, 'utf-8');
-
-    const startIdx = content.indexOf('export const bookScript: BookScript = ');
-    if (startIdx === -1) throw new Error('Could not find bookScript export');
-
-    const jsonStart = startIdx + 'export const bookScript: BookScript = '.length;
-    const jsonEnd = content.lastIndexOf(';');
-    const jsonStr = content.substring(jsonStart, jsonEnd).trim();
-    const scriptData = eval(`(${jsonStr})`);
-
-    const scenes = scriptData.scenes.slice(0, maxCount);
-    await generateAllAudio(scenes);
+      const mp3Buffer = await generateWithWangWang(scene);
+      writeFileSync(mp3Path, mp3Buffer);
+      execSync(`ffmpeg -y -i "${mp3Path}" -ar 24000 -ac 1 "${wavPath}" 2>/dev/null`);
+      unlinkSync(mp3Path);
+      const stats = await import('fs').then(fs => fs.statSync(wavPath));
+      console.log(`  ✓ ${scene.id}.wav (WangWang) (${Math.round(stats.size/1024)} KB)`);
+      return true;
   } catch (e) {
-    console.error('Failed:', e);
+      console.warn(`  ⚠️ WangWang failed: ${e.message}. Trying OpenAI...`);
+      
+      // Fallback to OpenAI
+      if (process.env.OPENAI_API_KEY) {
+          const ok = await generateWithOpenAI(scene.narration, wavPath);
+          if (ok) {
+              const stats = await import('fs').then(fs => fs.statSync(wavPath));
+              console.log(`  ✓ ${scene.id}.wav (OpenAI) (${Math.round(stats.size/1024)} KB)`);
+              return true;
+          }
+      }
+      
+      console.error(`  ✗ Failed to generate ${scene.id}`);
+      return false;
+  }
+}
+
+function parseBookScript() {
+  if (!existsSync(SCRIPT_PATH)) {
+    throw new Error(`Script file not found at ${SCRIPT_PATH}`);
+  }
+  const content = readFileSync(SCRIPT_PATH, 'utf-8');
+  const jsonStr = content.match(/export const bookScript: BookScript = (\{[\s\S]*?\});/)[1];
+  return eval(`(${jsonStr})`);
+}
+
+async function main() {
+  try {
+    const bookScript = parseBookScript();
+    let successCount = 0;
+    
+    console.log('\n🎙️  Audio Generation (Hybrid: WangWang -> OpenAI)');
+    
+    const total = bookScript.scenes.length;
+    for (let i = 0; i < total; i++) {
+      writeProgress(i + 1, total);
+      const scene = bookScript.scenes[i];
+      const ok = await generateSceneAudio(scene, i, total);
+      if (ok) successCount++;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    console.log(`\n✨ ${successCount}/${bookScript.scenes.length} audio files generated!`);
+    
+  } catch (error) {
+    console.error('Fatal Error:', error);
     process.exit(1);
   }
 }

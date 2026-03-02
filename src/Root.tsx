@@ -1,6 +1,8 @@
 import React from 'react';
 import { Composition, staticFile } from 'remotion';
 import { BookComposition, TRANSITION_FRAMES } from './BookComposition';
+import { CyberThumbnail } from './CyberThumbnail';
+import { ClassicCover } from './ClassicCover';
 import { bookScript } from './data/bookScript';
 
 const GlobalStyle = () => {
@@ -31,8 +33,24 @@ export const RemotionRoot: React.FC = () => {
         component={BookComposition}
         durationInFrames={bookScript.totalDuration - (bookScript.scenes.length - 1) * TRANSITION_FRAMES}
         fps={30}
-        width={1920}
-        height={1080}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="CyberCover"
+        component={CyberThumbnail}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="ClassicCover"
+        component={ClassicCover}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1920}
       />
     </>
   );
