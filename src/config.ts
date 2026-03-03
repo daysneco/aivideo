@@ -3,7 +3,7 @@
  */
 
 export const VIDEO_CONFIG = {
-  TITLE_FONT_SIZE: 80,
+  TITLE_FONT_SIZE: 60,
   TITLE_COLOR: '#fbbf24',
   TITLE_GLOW: '0 4px 10px rgba(0, 0, 0, 0.5)',
   

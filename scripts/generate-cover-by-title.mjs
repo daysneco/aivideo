@@ -15,17 +15,16 @@ config({ path: envPath });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
-const OUTPUT_DIR = join(ROOT, 'output');
 
-async function generateCoverByTitle(bookTitle) {
+async function generateCoverByTitle(bookTitle, outputDir = 'output') {
   console.log(`🎨 开始为《${bookTitle}》生成AI封面...`);
 
   // 确保输出目录存在
-  if (!existsSync(OUTPUT_DIR)) {
-    mkdirSync(OUTPUT_DIR, { recursive: true });
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
   }
 
-  const outputPath = join(OUTPUT_DIR, `${bookTitle.replace(/[^\w\u4e00-\u9fff]/g, '_')}_ai_cover.png`);
+  const outputPath = join(outputDir, `${bookTitle.replace(/[^\w\u4e00-\u9fff]/g, '_')}_ai_cover.png`);
 
   try {
     const { GoogleGenAI } = await import('@google/genai');
@@ -158,9 +157,10 @@ Requirements:
 }
 
 async function main() {
-  // 获取命令行参数中的书籍名称，如果没有则从环境变量获取
+  // 获取命令行参数：书籍名称和输出目录
   const args = process.argv.slice(2);
   let bookTitle = args[0];
+  let outputDir = args[1] || 'output';
 
   // 如果没有命令行参数，尝试从环境变量获取书名
   if (!bookTitle) {
@@ -171,11 +171,11 @@ async function main() {
     console.log('❌ 请提供书籍名称');
     console.log('');
     console.log('📖 使用方法:');
-    console.log('  node scripts/generate-cover-by-title.mjs "书籍名称"');
+    console.log('  node scripts/generate-cover-by-title.mjs "书籍名称" [输出目录]');
     console.log('');
     console.log('📚 示例:');
     console.log('  node scripts/generate-cover-by-title.mjs "思考，快与慢"');
-    console.log('  node scripts/generate-cover-by-title.mjs "Atomic Habits"');
+    console.log('  node scripts/generate-cover-by-title.mjs "Atomic Habits" "output/我的书籍"');
     console.log('');
     console.log('💡 提示: 也可以设置环境变量 BOOK_NAME 或 BOOK_TITLE');
     process.exit(1);
@@ -184,7 +184,7 @@ async function main() {
   console.log(`🎨 AI封面生成器 - 为《${bookTitle}》创建专业封面\n`);
 
   try {
-    const outputPath = await generateCoverByTitle(bookTitle);
+    const outputPath = await generateCoverByTitle(bookTitle, outputDir);
 
     console.log('\n🎉 书籍封面生成完成！');
     console.log(`📖 书籍: 《${bookTitle}》`);

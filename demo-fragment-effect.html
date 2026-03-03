@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>64碎片飞入特效演示</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .demo-section {
+            margin: 40px 0;
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .demo-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 15px;
+        }
+
+        .spec-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .spec-item {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #2563eb;
+        }
+
+        .spec-label {
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+
+        .spec-value {
+            font-size: 18px;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+
+        .spec-desc {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .effect-sequence {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 30px 0;
+        }
+
+        .sequence-step {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #10b981;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .step-number {
+            width: 30px;
+            height: 30px;
+            background: #10b981;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .step-content h3 {
+            margin: 0 0 5px 0;
+            color: #1f2937;
+        }
+
+        .step-content p {
+            margin: 0;
+            color: #666;
+        }
+
+        .code-block {
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+
+        .highlight {
+            background: #dbeafe;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #2563eb;
+            margin: 20px 0;
+        }
+
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .comparison-item {
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .before {
+            background: #fef2f2;
+            border: 2px solid #fca5a5;
+        }
+
+        .after {
+            background: #f0f9ff;
+            border: 2px solid #0ea5e9;
+        }
+
+        .comparison-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .before .comparison-title { color: #dc2626; }
+        .after .comparison-title { color: #0284c7; }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .feature-list li:before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2563eb;
+            display: block;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 64碎片飞入特效演示</h1>
+        <p class="subtitle">《被讨厌的勇气》视频 - 专业级动画特效</p>
+
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-number">64</span>
+                <span class="stat-label">碎片数量</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">20%</span>
+                <span class="stat-label">飞入时长占比</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">8</span>
+                <span class="stat-label">飞入方向</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">0</span>
+                <span class="stat-label">抖动程度</span>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">🎨 特效核心参数</h2>
+            <div class="spec-grid">
+                <div class="spec-item">
+                    <div class="spec-label">碎片分割</div>
+                    <div class="spec-value">8×8网格</div>
+                    <div class="spec-desc">图片被精确分割成64个小碎片</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">飞入速度</div>
+                    <div class="spec-value">超快速</div>
+                    <div class="spec-desc">仅用20%场景时长完成飞入</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">飞入方向</div>
+                    <div class="spec-value">四面八方</div>
+                    <div class="spec-desc">8个不同方向同时飞入</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">缓动算法</div>
+                    <div class="spec-value">easeOutQuart</div>
+                    <div class="spec-desc">专业级平滑动画曲线</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison">
+            <div class="comparison-item before">
+                <h3 class="comparison-title">❌ 之前的特效</h3>
+                <ul class="feature-list">
+                    <li>只有9个碎片</li>
+                    <li>飞入时间占40%</li>
+                    <li>有旋转抖动</li>
+                    <li>动画较慢</li>
+                    <li>视觉冲击一般</li>
+                </ul>
+            </div>
+            <div class="comparison-item after">
+                <h3 class="comparison-title">✅ 优化后的特效</h3>
+                <ul class="feature-list">
+                    <li>64个碎片 (7倍提升)</li>
+                    <li>飞入时间占20% (2倍加速)</li>
+                    <li>无旋转抖动</li>
+                    <li>easeOutQuart缓动</li>
+                    <li>震撼视觉效果</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">🎬 特效执行序列</h2>
+            <div class="effect-sequence">
+                <div class="sequence-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>图片分割</h3>
+                        <p>将1080×1440的图片精确分割成8×8的64个小碎片，每个碎片约为135×180像素</p>
+                    </div>
+                </div>
+                <div class="sequence-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>碎片定位</h3>
+                        <p>每个碎片被分配到屏幕边缘的随机位置：上方、下方、左侧、右侧，以及四个角落</p>
+                    </div>
+                </div>
+                <div class="sequence-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>智能延迟</h3>
+                        <p>基于距离图片中心的远近计算延迟，越远的碎片延迟越小，先开始飞入</p>
+                    </div>
+                </div>
+                <div class="sequence-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h3>快速飞入</h3>
+                        <p>64个碎片同时从四面八方飞入，飞入时间仅占场景总时长的20%</p>
+                    </div>
+                </div>
+                <div class="sequence-step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <h3>平滑合成</h3>
+                        <p>所有碎片同时到达正确位置，easeOutQuart缓动确保完美合成</p>
+                    </div>
+                </div>
+                <div class="sequence-step">
+                    <div class="step-number">6</div>
+                    <div class="step-content">
+                        <h3>书名显示</h3>
+                        <p>完整图片显示后，配合《被讨厌的勇气》书名优雅呈现</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="highlight">
+            <h3>💡 技术亮点</h3>
+            <ul class="feature-list">
+                <li><strong>高性能渲染</strong>: 64个碎片同时动画，无卡顿</li>
+                <li><strong>智能算法</strong>: 距离中心延迟计算，创造自然层次</li>
+                <li><strong>专业缓动</strong>: easeOutQuart提供电影级平滑度</li>
+                <li><strong>视觉优化</strong>: 移除抖动，专注震撼效果</li>
+                <li><strong>响应式设计</strong>: 自适应不同分辨率和场景时长</li>
+            </ul>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">🔧 实现代码片段</h2>
+            <div class="code-block">
+// 核心特效实现
+const FragmentedImageFlyIn: React.FC<{
+  src: string;
+  width: number;
+  height: number;
+  durationInFrames: number;
+}> = ({ src, width, height, durationInFrames }) => {
+  const frame = useCurrentFrame();
+
+  // 8×8网格，64个碎片
+  const gridSize = 8;
+  const totalFragments = gridSize * gridSize;
+
+  // 20%时长用于飞入（超快）
+  const flyInDuration = Math.floor(durationInFrames * 0.2);
+
+  // 智能碎片生成和动画逻辑...
+  return (
+    <div style={{ position: 'relative', width, height, overflow: 'hidden' }}>
+      {fragments.map((fragment) => {
+        // 每个碎片的飞入动画计算
+        // 基于距离中心的延迟
+        // easeOutQuart缓动
+        // 无抖动旋转
+        return (
+          <div style={{
+            position: 'absolute',
+            transform: `scale(${currentScale})`,
+            // 飞入动画参数...
+          }}>
+            <Img src={src} style={{
+              // 碎片定位和裁剪...
+            }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+            </div>
+        </div>
+
+        <div class="highlight">
+            <h3>🎯 使用建议</h3>
+            <p>这个64碎片飞入特效特别适合：</p>
+            <ul class="feature-list">
+                <li>书籍解读视频 - 为封面图片增添专业质感</li>
+                <li>产品展示 - 突出重要图片或概念</li>
+                <li>品牌宣传 - 创造高端视觉体验</li>
+                <li>教育内容 - 增强学习材料的吸引力</li>
+            </ul>
+        </div>
+
+        <p style="text-align: center; margin-top: 40px; color: #666; font-style: italic;">
+            🚀 这个特效将为您的视频内容增添专业级的视觉冲击力！
+        </p>
+    </div>
+</body>
+</html>

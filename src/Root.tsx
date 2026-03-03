@@ -31,7 +31,7 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="BookVideo"
         component={BookComposition}
-        durationInFrames={bookScript.totalDuration - (bookScript.scenes.length - 1) * TRANSITION_FRAMES}
+        durationInFrames={bookScript.totalDuration}
         fps={30}
         width={1080}
         height={1920}

@@ -1,70 +1,47 @@
 import React from 'react';
-import { AbsoluteFill } from 'remotion';
-import { TransitionSeries, linearTiming, springTiming } from '@remotion/transitions';
-import { fade } from '@remotion/transitions/fade';
-import { slide } from '@remotion/transitions/slide';
-import { flip } from '@remotion/transitions/flip';
+import { AbsoluteFill, Audio, Sequence, staticFile } from 'remotion';
 import { bookScript } from './data/bookScript';
 import { BookScene } from './components/BookScene';
-import { ThemeNavBar } from './components/ThemeNavBar';
-import { swingDoor, zoomRotate } from './transitions/custom3d';
 
 // Transition duration in frames (shared with ThemeNavBar)
 export const TRANSITION_FRAMES = 30; // 1s at 30fps — longer for smoother scene transitions
 export const AUDIO_PADDING_FRAMES = 45; // 1.5s silence padding at end of each scene
 
-// Pick transition effect based on theme change and scene index
-function getTransition(prevTheme: string, nextTheme: string, index: number) {
-  if (prevTheme === nextTheme) {
-    // Same theme: alternate between fade and flip
-    const sameThemeEffects = [
-      fade(),
-      flip({ direction: 'from-right', perspective: 1200 }),
-    ];
-    return {
-      presentation: sameThemeEffects[index % sameThemeEffects.length],
-      timing: index % 2 === 0
-        ? linearTiming({ durationInFrames: TRANSITION_FRAMES })
-        : springTiming({ durationInFrames: TRANSITION_FRAMES, config: { damping: 15 } }),
-    };
-  }
-  // Cross-theme: cycle through 3D and directional effects
-  const crossThemeEffects = [
-    flip({ direction: 'from-left', perspective: 1000 }),
-    swingDoor({ perspective: 1200 }),
-    zoomRotate({ perspective: 1000 }),
-    slide({ direction: 'from-bottom' }),
-  ];
-  const hash = (prevTheme.length + nextTheme.length + index) % crossThemeEffects.length;
-  return {
-    presentation: crossThemeEffects[hash],
-    timing: springTiming({ durationInFrames: TRANSITION_FRAMES, config: { damping: 14 } }),
-  };
-}
-
 export const BookComposition: React.FC = () => {
   const scenes = bookScript.scenes;
+  const timeline = scenes.map((scene, index) => {
+    const from = scenes
+      .slice(0, index)
+      .reduce((acc, s) => acc + s.durationInFrames, 0);
+
+    return {
+      ...scene,
+      from,
+    };
+  });
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000000' }}>
-      <TransitionSeries>
-        {scenes.map((item, index) => (
-          <React.Fragment key={item.id}>
-            <TransitionSeries.Sequence durationInFrames={item.durationInFrames}>
-              <BookScene item={item} />
-            </TransitionSeries.Sequence>
-            {index < scenes.length - 1 && (() => {
-              const t = getTransition(item.theme, scenes[index + 1].theme, index);
-              return (
-                <TransitionSeries.Transition
-                  presentation={t.presentation as any}
-                  timing={t.timing}
-                />
-              );
-            })()}
-          </React.Fragment>
-        ))}
-      </TransitionSeries>
+      {/* Centralized audio track: hard cut, full scene audio duration */}
+      {timeline.map((item, index) => (
+        <Sequence key={`audio-${item.id}`} from={item.from} durationInFrames={item.durationInFrames}>
+          <Audio
+            src={staticFile(`audio/${item.id}.wav`)}
+            volume={(f) => {
+              // tiny fade to avoid click, no overlap
+              const fadeIn = Math.min(1, f / 3);
+              const fadeOut = Math.min(1, Math.max(0, (item.durationInFrames - f) / 3));
+              return Math.min(fadeIn, fadeOut);
+            }}
+          />
+        </Sequence>
+      ))}
+
+      {timeline.map((item) => (
+        <Sequence key={`visual-${item.id}`} from={item.from} durationInFrames={item.durationInFrames}>
+          <BookScene item={item} />
+        </Sequence>
+      ))}
     </AbsoluteFill>
   );
 };

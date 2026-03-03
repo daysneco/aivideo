@@ -18,8 +18,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const IMAGE_DIR = join(__dirname, '../public/images');
 
 // Primary and Backup models for better reliability
-const MODEL_PRIMARY = process.env.MODEL_IMAGE || 'gemini-2.0-flash';
-const MODEL_BACKUP = process.env.MODEL_IMAGE_BACKUP || 'gemini-2.5-flash-image';
+const MODEL_PRIMARY = 'gemini-2.5-flash-image';
+const MODEL_BACKUP = 'gemini-3-flash-preview';
 
 // Ensure image directory exists
 if (!existsSync(IMAGE_DIR)) {
@@ -48,6 +48,7 @@ Style requirements:
 - Aspect ratio 2:3 (1024x1536), portrait orientation
 - **CRITICAL: Ensure the background texture spans edge-to-edge across the whole canvas. NO WHITE BORDERS.**
 - **CRITICAL: DO NOT RENDER ANY TEXT, CHARACTERS, OR SYMBOLS IN THE IMAGE.**
+- **CRITICAL: Center all subjects (people, animals, objects) VERTICALLY in the middle third of the image. Keep them positioned between the upper and lower thirds of the frame.**
 - Clean and minimal composition with plenty of breathing room`;
 
 // Generate image prompt from scene data
@@ -102,11 +103,20 @@ async function generateImage(ai, scene, bookTitle, outputPath) {
   // Try Primary
   console.log(`    Trying primary model: ${MODEL_PRIMARY}...`);
   let success = await attempt(MODEL_PRIMARY);
-  
+
   // Try Backup if failed
   if (!success) {
     console.log(`    🔄 Primary failed. Trying backup model: ${MODEL_BACKUP}...`);
     success = await attempt(MODEL_BACKUP);
+  }
+
+  // If both models failed, terminate program
+  if (!success) {
+    console.error(`\n❌ FATAL ERROR: Both primary model (${MODEL_PRIMARY}) and backup model (${MODEL_BACKUP}) failed to generate image for scene "${scene.id}".`);
+    console.error(`   Scene title: "${scene.title}"`);
+    console.error(`   Scene content: "${scene.narration}"`);
+    console.error(`   Program will now terminate.`);
+    process.exit(1);
   }
 
   return success;
@@ -150,42 +160,50 @@ async function main() {
     scenes = scenes.slice(0, maxCount);
   }
 
+  // 检查现有图片数量
+  const existingImages = scenes.filter(scene => existsSync(join(IMAGE_DIR, `${scene.id}.png`)));
+  const missingImages = scenes.filter(scene => !existsSync(join(IMAGE_DIR, `${scene.id}.png`)));
+
   console.log(`\n🎨 Generating images for "${bookTitle}"`);
   console.log(`   Primary Model: ${MODEL_PRIMARY}`);
   console.log(`   Backup Model: ${MODEL_BACKUP}`);
   console.log(`   Output: ${IMAGE_DIR}`);
-  console.log(`   Scenes: ${scenes.length}`);
+  console.log(`   Total scenes: ${scenes.length}`);
+  console.log(`   Existing images: ${existingImages.length}`);
+  console.log(`   Missing images: ${missingImages.length}`);
   console.log(`   Force regenerate: ${force}\n`);
 
   let generated = 0;
   let skipped = 0;
   let failed = 0;
 
-  for (let i = 0; i < scenes.length; i++) {
-    writeProgress(i + 1, scenes.length);
-    const scene = scenes[i];
-    const outputPath = join(IMAGE_DIR, `${scene.id}.png`);
+  // 如果不是强制重新生成且图片数量匹配，则跳过
+  if (!force && existingImages.length === scenes.length) {
+    console.log(`✅ All ${scenes.length} scenes already have images. Use --force to regenerate.\n`);
+    skipped = scenes.length;
+  } else {
+    // 生成缺失的图片
+    const scenesToGenerate = force ? scenes : missingImages;
 
-    // Skip if already exists (unless --force)
-    if (!force && existsSync(outputPath)) {
-      console.log(`  ⏭ [${i + 1}/${scenes.length}] ${scene.id} — already exists, skipping`);
-      skipped++;
-      continue;
-    }
+    for (let i = 0; i < scenesToGenerate.length; i++) {
+      writeProgress(i + 1, scenesToGenerate.length);
+      const scene = scenesToGenerate[i];
+      const outputPath = join(IMAGE_DIR, `${scene.id}.png`);
 
-    console.log(`  🖌 [${i + 1}/${scenes.length}] ${scene.id} — "${scene.title}"...`);
+      console.log(`  🖌 [${i + 1}/${scenesToGenerate.length}] ${scene.id} — "${scene.title}"...`);
 
-    const success = await generateImage(ai, scene, bookTitle, outputPath);
-    if (success) {
-      console.log(`  ✓ Saved to ${scene.id}.png`);
-      generated++;
-    } else {
-      failed++;
-    }
+      const success = await generateImage(ai, scene, bookTitle, outputPath);
+      if (success) {
+        console.log(`  ✓ Saved to ${scene.id}.png`);
+        generated++;
+      } else {
+        failed++;
+      }
 
-    // Rate limiting: wait 2 seconds between requests
-    if (i < scenes.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Rate limiting: wait 2 seconds between requests
+      if (i < scenesToGenerate.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
     }
   }
 
