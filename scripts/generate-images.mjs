@@ -36,19 +36,16 @@ function getClient() {
 }
 
 // Style prompt template for consistent illustration style
-const STYLE_PROMPT = `You are creating illustrations for an educational book summary video.
+const STYLE_PROMPT = `You are creating cinematic illustrations for a high-traffic short video.
 
 Style requirements:
-- Minimalist hand-drawn line art illustration
-- **Lines: Rough crayon texture, black charcoal-like strokes, uneven with grainy hand-drawn feel**
-- **Style: Children's picture book aesthetic combined with a simple cartoon vector-like look**
-- A small amount of soft blue accents (only for focus or key elements)
-- Flat composition, modern tech and humanity theme
-- **Background: Solid Cream/Beige watercolor paper texture filling the entire frame, no borders, warm atmosphere**
-- Aspect ratio 2:3 (1024x1536), portrait orientation
-- **CRITICAL: Ensure the background texture spans edge-to-edge across the whole canvas. NO WHITE BORDERS.**
+- **Cinematic Anime Style / Modern Digital Art**
+- **Vibrant colors with high contrast, dramatic lighting**
+- **Dynamic composition, low-angle or Dutch angle for impact**
+- Thick brush strokes, detailed textures
+- Modern tech and humanity theme
 - **CRITICAL: DO NOT RENDER ANY TEXT, CHARACTERS, OR SYMBOLS IN THE IMAGE.**
-- **CRITICAL: Center all subjects (people, animals, objects) VERTICALLY in the middle third of the image. Keep them positioned between the upper and lower thirds of the frame.**
+- **CRITICAL: Center all subjects (people, animals, objects) VERTICALLY in the middle third of the image.**
 - Clean and minimal composition with plenty of breathing room`;
 
 // Generate image prompt from scene data
@@ -74,14 +71,15 @@ async function generateImage(ai, scene, bookTitle, outputPath) {
 
   const attempt = async (modelName) => {
     try {
+      const config = modelName === 'gemini-3-flash-preview' ? {} : {
+        imageConfig: {
+          aspectRatio: '9:16',
+        },
+      };
       const response = await ai.models.generateContent({
         model: modelName,
         contents: prompt,
-        config: {
-          imageConfig: {
-            aspectRatio: '3:4',
-          },
-        },
+        config: config,
       });
 
       // Extract image from response
@@ -161,8 +159,8 @@ async function main() {
   }
 
   // 检查现有图片数量
-  const existingImages = scenes.filter(scene => existsSync(join(IMAGE_DIR, `${scene.id}.png`)));
-  const missingImages = scenes.filter(scene => !existsSync(join(IMAGE_DIR, `${scene.id}.png`)));
+  const existingImages = scenes.filter(scene => scene.id === 'intro-book' || existsSync(join(IMAGE_DIR, `${scene.id}.png`)));
+  const missingImages = scenes.filter(scene => scene.id !== 'intro-book' && !existsSync(join(IMAGE_DIR, `${scene.id}.png`)));
 
   console.log(`\n🎨 Generating images for "${bookTitle}"`);
   console.log(`   Primary Model: ${MODEL_PRIMARY}`);
@@ -211,10 +209,14 @@ async function main() {
 
   // Write manifest of scene IDs that have an image (so BookScene only loads existing PNGs)
   const sceneIdsWithImages = scriptData.scenes
-    .filter(s => existsSync(join(IMAGE_DIR, `${s.id}.png`)))
+    .filter(s => s.id === 'intro-book' || existsSync(join(IMAGE_DIR, `${s.id}.png`)))
     .map(s => s.id);
+  
+  const hasRealCover = existsSync(join(__dirname, '../public/book_cover_real.png'));
+  const coverFileName = hasRealCover ? 'book_cover_real.png' : 'book_cover.png';
+
   const manifestPath = join(__dirname, '../src/data/imageManifest.ts');
-  writeFileSync(manifestPath, `export const sceneIdsWithImages: string[] = ${JSON.stringify(sceneIdsWithImages)};\n`, 'utf-8');
+  writeFileSync(manifestPath, `export const sceneIdsWithImages: string[] = ${JSON.stringify(sceneIdsWithImages)};\nexport const coverFileName: string = "${coverFileName}";\n`, 'utf-8');
   console.log(`📋 Wrote imageManifest.ts (${sceneIdsWithImages.length}/${scriptData.scenes.length} scenes have images)\n`);
 
   // --- Generate Book Cover (only if fetch-book-cover did not save one) ---

@@ -37,40 +37,45 @@ async function main() {
     }
   }
 
-  console.log(`Generating script for book: "${bookName}"...`);
+  console.log(`Generating narrative-style script for book: "${bookName}"...`);
 
   const prompt = `
-你是一位资深短视频书评编剧。请为《${bookName}》写一条**像一个人连续在说话**的解说剧本：整条剧本读下来必须是一段完整的论证，不能像几十条独立金句拼在一起。
+你是一位顶级短视频流量专家。请为《${bookName}》写一个**贯穿始终、逻辑严密**的短视频脚本。
 
-【重要】下方「参考大纲」是论证的**唯一顺序**。你必须严格按大纲的章节与逻辑顺序展开，每一场都是上一场的「下一句」：要么是上句的推论（所以/于是），要么是举例（比如说/比如），要么是递进（再进一步/更重要的是），要么是转折过渡（那/而/说到这儿/接下来）。**禁止**在两句之间无衔接地跳到新话题。
+【核心痛点：拒绝割裂】
+目前生成的视频内容太散，像是在罗列概念。我要的是一个**有灵魂、有连贯逻辑**的解说。
+想象你正在面对面跟一个焦虑的年轻人说话，你要用一个核心论点（Thesis）把整本书串起来。
 
-${outlineContent ? `【参考大纲——必须按此顺序与逻辑展开】\n${outlineContent}\n` : ''}
-
----
-
-## 一、结构（严格按大纲对应）
-
-1. **钩子 + 点题**：第 1 句**必须是反问句**引入（例如：为什么越努力越穷？为什么大多数人读了很多书却没用？为什么聪明人反而更焦虑？），第 2 句必须出现「今天要介绍的书是《${bookName}》」或「今天要聊的就是这本《${bookName}》」。id: hook-1, intro-1
-2. **书籍引入**：用 2～3 句说明这本书讲什么、为什么值得看，并自然接到大纲第一节。id: intro-2, intro-3
-3. **三个核心观点**：完全按大纲的 1→2→3→4→5 节顺序展开，节内与节间用衔接词串联。id: point1-*, point2-*, point3-*
-4. **情绪总结**：2～3 句收束，与前面观点呼应。id: summary-1, summary-2
-5. **结尾**：**必须用书中一两句金句收尾**。从参考大纲或该书经典表述中选取/改写 1～2 句可作为「金句」的短句（每句 ≤20 字），放在最后 1～2 个场景，让观众以书中原味收尾。例如纳瓦尔宝典可选用「改变它、接受它，或离开它」「你只是宇宙中的一道微光」「第二次生命便已开启」等意境的句子。金句后可再加一句极短的互动（如「下本书见」）。id: quote-1, quote-2, cta-1
+【硬性要求】
+1. **统一叙事线**：整条剧本必须是一段**完整的、不可分割的论证**。每一场必须是上一场的「下一句」：要么是推论（于是/所以），要么是转折（但/其实），要么是深化（更扎心的是）。
+2. **禁止清单**：禁止出现“第一点、第二点”这种列表式表达。禁止在两句之间无衔接地跳到新话题。
+3. **时长**：60～80秒。约 20～26 个场景。
+4. **口语化**：每句 ≤15 字。像机关枪一样密集但逻辑清晰。
+5. **黄金开头**：第 1 句必须是反问或认知反差，引入一个钩子引起人们的注意。第 2 个场景必须是介绍今天讲的书（“今天要介绍的书是《${bookName}》...”）。
 
 ---
 
-## 二、连贯性与时长
+## 一、脚本结构流 (Narrative Flow)
 
-- **每两句之间**：narration 里带衔接词或内容上为推论/举例/对比，整条像连续口播。
-- **每句 ≤20 字**，口语化，适合字幕。
-- **总时长必须在 150～180 秒之间**：即约 **50～58 个场景**（按每场景 3 秒计），内容要铺满，不能过短。
+1. **破题与引入 (The Hook & Intro)**：
+   - 第 1 个场景 (id 必须为: hook-1)：戳破现状，引入钩子，建立危机感。
+   - 第 2 个场景 (id 必须为: intro-book)：必须直接说出“今天要介绍的书是《${bookName}》...”，并配上相关的引导语。
+2. **因果链路 (The Chain)**：
+   - 为什么我们会这样？（分析根源）
+   - 这本书给出的“唯一出路”是什么？（引入核心论点）
+   - 沿着这个出路走下去，你会遇到什么？（深度拆解）
+3. **觉醒时刻 (The Aha!)**：用一个极具反差的结论，让观众觉得“原来如此”。
+4. **行动/升华 (The Payoff)**：给出一个具体的起步动作 + 书中金句。id: quote-1, cta-1
 
 ---
 
-## 三、输出格式（仅输出一个合法 JSON，不要 markdown 代码块）
+## 二、输出格式（仅输出一个合法 JSON）
 
-- **themes**：5 个。["钩子与引入", "核心观点一", "核心观点二", "核心观点三", "总结与行动"]
-- **highlightKeywords**：该书解说中需要**在字幕里高亮**的核心概念词，8～15 个。例如《纳瓦尔宝典》可填：["财富", "杠杆", "幸福", "判断力", "专长", "责任感", "地位", "金钱", "第一性原理", "复利"]；《自卑与超越》可填：["自卑", "超越", "合作", "勇气", "童年", "意义"]。只填会在 narration 里出现的核心词，用于字幕高亮。
-- **scenes**：共 **50～58 个**，每项含 id, title, theme, narration（≤20字）, narrationEn, durationSeconds:3, icon, color。hook-1 必须是**反问句**；intro-1 为点题「今天要聊的就是这本《${bookName}》」；结尾用 quote-1、quote-2 放**书中金句**（从大纲中选/改），cta-1 可极短互动。只输出一个合法 JSON，不要 markdown 包裹。
+- **themes**：5 个逻辑阶段。例如 ["现状破防", "寻找根源", "逻辑重构", "觉醒时刻", "最后一步"]
+- **highlightKeywords**：8～15 个字幕高亮词。
+- **scenes**：共 20～26 个。每项含 id, title, theme, narration, narrationEn, durationSeconds:3.2, icon, color。
+
+narration 必须体现逻辑衔接词（于是、因为、这意味着、更可怕的是...）。
 `;
 
   try {
@@ -111,7 +116,7 @@ export const bookScript: BookScript = ${JSON.stringify(finalData, null, 2)};
 
     writeFileSync(outputPath, fileContent, 'utf-8');
     const manifestPath = join(root, 'src/data/imageManifest.ts');
-    writeFileSync(manifestPath, "export const sceneIdsWithImages: string[] = [];\n", 'utf-8');
+    writeFileSync(manifestPath, "export const sceneIdsWithImages: string[] = [];\nexport const coverFileName: string = 'book_cover.png';\n", 'utf-8');
     console.log(`Success! Script written to ${outputPath}`);
     console.log(`Total Scenes: ${finalData.scenes.length}`);
     console.log(`Total Duration: ${(totalDuration / FPS / 60).toFixed(1)} minutes`);

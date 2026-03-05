@@ -11,39 +11,32 @@ function writeProgress(current, total) {
   } catch (_) {}
 }
 import { fileURLToPath } from 'url';
-import { createHmac, randomUUID } from 'crypto';
 import { execSync } from 'child_process';
 import 'dotenv/config';
 import OpenAI from 'openai';
+import { GoogleGenAI } from '@google/genai';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const AUDIO_DIR = join(__dirname, '../public/audio');
 const SCRIPT_PATH = join(__dirname, '../src/data/bookScript.ts');
-const CONFIG_PATH = join(__dirname, '../src/config.ts');
-
-// Helper to get config from TS file (since we're in CJS/MJS without ts-node)
-function getConfig() {
-  const content = readFileSync(CONFIG_PATH, 'utf-8');
-  const speedMatch = content.match(/AUDIO_SPEED:\s*['"](.*?)['"]/);
-  return {
-    AUDIO_SPEED: speedMatch ? speedMatch[1] : '+25%'
-  };
-}
-const config = getConfig();
-
-// Configuration
-const PROVIDER = process.env.TTS_PROVIDER || 'wangwang';
-const WANGWANG_VOICE = 'zh-CN-XiaochenNeural'; // 晓辰女声 
 
 // Ensure audio directory exists
 if (!existsSync(AUDIO_DIR)) {
   mkdirSync(AUDIO_DIR, { recursive: true });
 }
 
+// Configuration
+const PROVIDER = process.env.TTS_PROVIDER || 'gemini';
+const GEMINI_VOICE = 'Gacrux';
+
 // Initialize OpenAI (fallback)
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'sk-placeholder', 
 });
+
+// Initialize Gemini
+const geminiApiKey = process.env.GEMINI_API_KEY;
+const ai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
 async function generateWithOpenAI(text, outputPath) {
   try {
@@ -65,106 +58,62 @@ async function generateWithOpenAI(text, outputPath) {
   }
 }
 
-// ---- WangWang / Edge TTS Logic ----
+async function generateWithGemini(text, outputPath) {
+  if (!ai) {
+    console.error('GEMINI_API_KEY is not set');
+    return false;
+  }
 
-let tokenInfo = { endpoint: null, token: null, expiredAt: null };
-const TOKEN_REFRESH_BEFORE_EXPIRY = 3 * 60;
+  const prompt = `# AUDIO PROFILE: 短视频讲书人
 
-function uuid() { return randomUUID().replace(/-/g, ""); }
-function dateFormat() { return (new Date()).toUTCString().replace(/GMT/, "").trim().toLowerCase() + " gmt"; }
-function base64ToBytes(base64) { return Buffer.from(base64, 'base64'); }
-function bytesToBase64(bytes) { return bytes.toString('base64'); }
-function hmacSha256(key, data) { return createHmac('sha256', key).update(data).digest(); }
+### DIRECTOR'S NOTES
+Style: 充满激情、引人入胜的短视频讲书人。声音具有穿透力，能够立刻抓住观众的注意力。
+Pacing: 语速像机关枪一样密集但逻辑清晰，节奏感强，重点词语要重音强调。
+Accent: 标准普通话，声音要清晰有力。
 
-async function sign(urlStr) {
-    const url = urlStr.split("://")[1];
-    const encodedUrl = encodeURIComponent(url);
-    const uuidStr = uuid();
-    const formattedDate = dateFormat();
-    const bytesToSign = `MSTranslatorAndroidApp${encodedUrl}${formattedDate}${uuidStr}`.toLowerCase();
-    const decode = base64ToBytes("oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw==");
-    const signData = hmacSha256(decode, bytesToSign);
-    const signBase64 = bytesToBase64(signData);
-    return `MSTranslatorAndroidApp::${signBase64}::${formattedDate}::${uuidStr}`;
-}
+### TRANSCRIPT
+${text}`;
 
-async function getEndpoint() {
-    const now = Date.now() / 1000;
-    if (tokenInfo.token && tokenInfo.expiredAt && now < tokenInfo.expiredAt - TOKEN_REFRESH_BEFORE_EXPIRY) {
-        return tokenInfo.endpoint;
-    }
-    const endpointUrl = "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0";
-    const clientId = uuid();
+  for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-        const signature = await sign(endpointUrl);
-        const response = await fetch(endpointUrl, {
-            method: "POST",
-            headers: {
-                "Accept-Language": "zh-Hans",
-                "X-ClientVersion": "4.0.530a 5fe1dc6c",
-                "X-UserId": "0f04d16a175c411e",
-                "X-HomeGeographicRegion": "zh-Hans-CN",
-                "X-ClientTraceId": clientId,
-                "X-MT-Signature": signature,
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0",
-                "Content-Type": "application/json; charset=utf-8",
-                "Content-Length": "0",
-                "Accept-Encoding": "gzip"
-            }
-        });
-        if (!response.ok) throw new Error(`Get endpoint failed: ${response.status} ${await response.text()}`);
-        const data = await response.json();
-        const jwt = data.t.split(".")[1];
-        const decodedJwt = JSON.parse(Buffer.from(jwt, 'base64').toString());
-        tokenInfo = { endpoint: data, token: data.t, expiredAt: decodedJwt.exp };
-        return data;
-    } catch (error) {
-        console.error("Get endpoint failed:", error);
-        if (tokenInfo.token) return tokenInfo.endpoint;
-        throw error;
-    }
-}
-
-function escapeXmlText(text) {
-    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-}
-
-function getSsml(text, voiceName, rate, pitch, volume, style, slien = 0) {
-    const escapedText = escapeXmlText(text);
-    let slien_str = slien > 0 ? `<break time="${slien}ms" />` : '';
-    return `<speak xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" version="1.0" xml:lang="zh-CN"> 
-                <voice name="${voiceName}"> 
-                    <mstts:express-as style="${style}"  styledegree="2.0" role="default" > 
-                        <prosody rate="${rate}" pitch="${pitch}" volume="${volume}">${escapedText}</prosody> 
-                    </mstts:express-as> 
-                    ${slien_str}
-                </voice> 
-            </speak>`;
-}
-
-async function generateWithWangWang(scene) {
-    const endpoint = await getEndpoint();
-    const url = `https://${endpoint.r}.tts.speech.microsoft.com/cognitiveservices/v1`;
-    const ssml = getSsml(scene.narration, WANGWANG_VOICE, config.AUDIO_SPEED, '+0Hz', '+0%', 'general');
-    
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Authorization": endpoint.t,
-            "Content-Type": "application/ssml+xml",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0",
-            "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3"
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-preview-tts',
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: GEMINI_VOICE },
+            },
+          },
         },
-        body: ssml
-    });
+      });
 
-    if (!response.ok) throw new Error(`Edge TTS API Error: ${response.status} ${await response.text()}`);
-    return Buffer.from(await response.arrayBuffer());
+      const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!data) {
+        throw new Error('No audio data received from Gemini');
+      }
+
+      const pcmBuffer = Buffer.from(data, 'base64');
+      const pcmPath = outputPath.replace('.wav', '.temp.pcm');
+      writeFileSync(pcmPath, pcmBuffer);
+      
+      // The API returns 24kHz raw PCM data (s16le)
+      execSync(`ffmpeg -y -f s16le -ar 24000 -ac 1 -i "${pcmPath}" "${outputPath}" 2>/dev/null`);
+      unlinkSync(pcmPath);
+      return true;
+    } catch (e) {
+      console.warn(`  ⚠️ Gemini TTS attempt ${attempt} failed: ${e.message}`);
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+  return false;
 }
 
 async function generateSceneAudio(scene, index, total) {
   const wavPath = join(AUDIO_DIR, `${scene.id}.wav`);
-  const mp3Path = join(AUDIO_DIR, `${scene.id}.mp3`);
 
   if (existsSync(wavPath)) {
     console.log(`[${index + 1}/${total}] Skipping existing: ${scene.id}`);
@@ -173,31 +122,31 @@ async function generateSceneAudio(scene, index, total) {
 
   console.log(`[${index + 1}/${total}] Generating: ${scene.id}...`);
 
-  // Try WangWang
-  try {
-      const mp3Buffer = await generateWithWangWang(scene);
-      writeFileSync(mp3Path, mp3Buffer);
-      execSync(`ffmpeg -y -i "${mp3Path}" -ar 24000 -ac 1 "${wavPath}" 2>/dev/null`);
-      unlinkSync(mp3Path);
+  let success = false;
+
+  if (PROVIDER === 'gemini') {
+    success = await generateWithGemini(scene.narration, wavPath);
+    if (success) {
       const stats = await import('fs').then(fs => fs.statSync(wavPath));
-      console.log(`  ✓ ${scene.id}.wav (WangWang) (${Math.round(stats.size/1024)} KB)`);
+      console.log(`  ✓ ${scene.id}.wav (Gemini) (${Math.round(stats.size/1024)} KB)`);
       return true;
-  } catch (e) {
-      console.warn(`  ⚠️ WangWang failed: ${e.message}. Trying OpenAI...`);
-      
-      // Fallback to OpenAI
-      if (process.env.OPENAI_API_KEY) {
-          const ok = await generateWithOpenAI(scene.narration, wavPath);
-          if (ok) {
-              const stats = await import('fs').then(fs => fs.statSync(wavPath));
-              console.log(`  ✓ ${scene.id}.wav (OpenAI) (${Math.round(stats.size/1024)} KB)`);
-              return true;
-          }
-      }
-      
-      console.error(`  ✗ Failed to generate ${scene.id}`);
-      return false;
+    } else {
+      console.warn(`  ⚠️ Gemini failed. Falling back to OpenAI...`);
+    }
   }
+
+  // Fallback or if provider is openai
+  if (!success && process.env.OPENAI_API_KEY) {
+    success = await generateWithOpenAI(scene.narration, wavPath);
+    if (success) {
+      const stats = await import('fs').then(fs => fs.statSync(wavPath));
+      console.log(`  ✓ ${scene.id}.wav (OpenAI) (${Math.round(stats.size/1024)} KB)`);
+      return true;
+    }
+  }
+
+  console.error(`  ✗ Failed to generate ${scene.id}`);
+  return false;
 }
 
 function parseBookScript() {
@@ -214,7 +163,7 @@ async function main() {
     const bookScript = parseBookScript();
     let successCount = 0;
     
-    console.log('\n🎙️  Audio Generation (Hybrid: WangWang -> OpenAI)');
+    console.log(`\n🎙️  Audio Generation (Provider: ${PROVIDER}${PROVIDER === 'gemini' ? ' -> OpenAI Fallback' : ''})`);
     
     const total = bookScript.scenes.length;
     for (let i = 0; i < total; i++) {

@@ -7,24 +7,24 @@ export const VIDEO_CONFIG = {
   TITLE_COLOR: '#fbbf24',
   TITLE_GLOW: '0 4px 10px rgba(0, 0, 0, 0.5)',
   
-  AUDIO_SPEED: '+50%', 
-  AUDIO_PADDING_FRAMES: 45,
+  AUDIO_SPEED: '+35%', 
+  AUDIO_PADDING_FRAMES: 15,
   
   THEME: {
-    GRADIENT_TOP: 'linear-gradient(to bottom, #1a1a1a, #111111)',
-    GRADIENT_BOTTOM: 'linear-gradient(to top, #1a1a1a, #111111)',
-    NEON_BORDER: '1px solid rgba(226, 207, 182, 0.15)',
-    NEON_GLOW: '0 4px 15px rgba(0, 0, 0, 0.3)',
-    NEON_GLOW_REVERSE: '0 -4px 15px rgba(0, 0, 0, 0.3)',
-    SUBTITLE_TEXT_SHADOW: '2px 2px 8px rgba(0,0,0,0.8)',
+    GRADIENT_TOP: 'linear-gradient(to bottom, #0f172a, #000000)',
+    GRADIENT_BOTTOM: 'linear-gradient(to top, #0f172a, #000000)',
+    NEON_BORDER: '2px solid #fbbf24',
+    NEON_GLOW: '0 0 20px rgba(251, 191, 36, 0.4)',
+    NEON_GLOW_REVERSE: '0 0 20px rgba(251, 191, 36, 0.4)',
+    SUBTITLE_TEXT_SHADOW: '0 0 10px rgba(0,0,0,1)',
   },
   
   LAYOUT: {
-    IMAGE_MARGIN_TOP: -20,
-    SUBTITLE_PADDING_TOP: 20,
-    SUBTITLE_PADDING_H: 48, // 字幕距左右边缘
-    MAX_CHARS_PER_LINE: 28,
-    SUBTITLE_CN_SIZE: 52,
-    SUBTITLE_EN_SIZE: 38,
+    IMAGE_MARGIN_TOP: 0,
+    SUBTITLE_PADDING_TOP: 40,
+    SUBTITLE_PADDING_H: 60, // 字幕距左右边缘
+    MAX_CHARS_PER_LINE: 15,
+    SUBTITLE_CN_SIZE: 64,
+    SUBTITLE_EN_SIZE: 32,
   }
 };
