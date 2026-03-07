@@ -12,7 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const AUDIO_DIR = join(__dirname, '../public/audio');
 const SCRIPT_PATH = join(__dirname, '../src/data/bookScript.ts');
 const FPS = 30;
-const PADDING_FRAMES = 45; // 1.5s silence at end of each scene
+const PADDING_FRAMES = 6; // ~0.2s pause between scenes
 
 function getAudioDuration(filePath) {
   try {

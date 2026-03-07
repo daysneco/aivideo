@@ -135,15 +135,13 @@ import { spawnSync } from 'child_process';
 // ... (existing functions)
 
 function generateThumbnail() {
-  console.log('🖼️ Generating Cover (Classic style) from Composition...');
-  // 使用 ClassicCover 构图，与 classic_cover_v4 风格一致
-  // Output: output/upload-package/thumbnail.png
+  console.log('🖼️ Generating Real Cover Thumbnail (3:4) from Composition...');
   
   const result = spawnSync('npx', [
     'remotion', 
     'still', 
     'src/index.ts', 
-    'ClassicCover', 
+    'RealCoverXhs', 
     join(OUTPUT_DIR, 'thumbnail.png')
   ], { 
     stdio: 'inherit',
@@ -152,9 +150,8 @@ function generateThumbnail() {
   
   if (result.status !== 0) {
     console.error('❌ Failed to generate cover via Remotion');
-    // Fallback logic is handled in main if file doesn't exist
   } else {
-    console.log('✅ Generated thumbnail.png (Classic cover style)');
+    console.log('✅ Generated thumbnail.png (Real cover style)');
   }
 }
 
@@ -165,10 +162,14 @@ function main() {
     const data = parseBookScript();
     
     // 1. Generate SRT
-    // ...
-    
+    const srtContent = generateSRT(data.scenes);
+    writeFileSync(join(OUTPUT_DIR, 'captions.srt'), srtContent);
+    console.log('✅ Generated captions.srt');
+
     // 2. Generate Metadata
-    // ...
+    const metadataContent = generateMetadata(data);
+    writeFileSync(join(OUTPUT_DIR, 'metadata.txt'), metadataContent);
+    console.log('✅ Generated metadata.txt');
     
     // 3. Prepare Thumbnail (Classic Cover 风格)
     // Priority: 1. Remotion ClassicCover

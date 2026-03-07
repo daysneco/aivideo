@@ -9,6 +9,14 @@ export const VIDEO_CONFIG = {
   
   AUDIO_SPEED: '+35%', 
   AUDIO_PADDING_FRAMES: 15,
+
+  TTS: {
+    PROVIDER: 'edge',           // 'edge' | 'gemini'
+    EDGE_VOICE: 'zh-CN-YunfengNeural',
+    EDGE_RATE: '+0%',           // 1.0x speed
+    EDGE_STYLE: 'general',      // general | cheerful | newscast | calm | serious | affectionate | gentle | lyrical
+    GEMINI_VOICE: 'Gacrux',
+  },
   
   THEME: {
     GRADIENT_TOP: 'linear-gradient(to bottom, #0f172a, #000000)',
@@ -22,8 +30,8 @@ export const VIDEO_CONFIG = {
   LAYOUT: {
     IMAGE_MARGIN_TOP: 0,
     SUBTITLE_PADDING_TOP: 40,
-    SUBTITLE_PADDING_H: 60, // 字幕距左右边缘
-    MAX_CHARS_PER_LINE: 15,
+    SUBTITLE_PADDING_H: 100, // 字幕距左右边缘
+    MAX_CHARS_PER_LINE: 12,
     SUBTITLE_CN_SIZE: 64,
     SUBTITLE_EN_SIZE: 32,
   }

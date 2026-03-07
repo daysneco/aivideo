@@ -215,19 +215,11 @@ async function fetchEnhancedCover(bookTitle) {
       ]
     };
 
-    // 通用高质量封面库（如果没有预设封面）
-    const generalCovers = [
-      {
-        name: '通用高质量封面库',
-        urls: [
-          `https://covers.openlibrary.org/b/id/14858349-L.jpg`, // 通用的高质量封面
-          `https://covers.openlibrary.org/b/id/8315603-L.jpg`,  // 另一个高质量封面
-        ]
-      }
-    ];
-
-    // 选择封面库
-    const coverLibraries = knownCovers[searchTerm] || generalCovers;
+    const coverLibraries = knownCovers[searchTerm];
+    if (!coverLibraries) {
+      console.log(`❌ 无预设封面: "${searchTerm}"`);
+      return null;
+    }
 
     for (const library of coverLibraries) {
       console.log(`📚 检查 ${library.name}...`);
@@ -649,28 +641,33 @@ async function fetchDoubanCover(bookTitle) {
       }
     }
 
-    // 如果是中文书名，尝试豆瓣搜索API
+    // 通过豆瓣通用搜索提取封面图片
     if (detectLanguage(bookTitle) === 'zh') {
       console.log(`🔍 豆瓣: 搜索中文书籍 "${searchTerm}"`);
 
-      const searchUrl = `https://book.douban.com/subject_search?search_text=${encodeURIComponent(searchTerm)}&cat=1001`;
+      const searchUrl = `https://www.douban.com/search?cat=1001&q=${encodeURIComponent(searchTerm)}`;
       const searchResponse = await fetch(searchUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://www.douban.com/',
         }
       });
 
       if (searchResponse.ok) {
         const html = await searchResponse.text();
-        // 简单提取第一个搜索结果的ID（这只是一个基本实现）
-        const subjectMatch = html.match(/subject\/(\d+)\//);
-        if (subjectMatch) {
-          const bookId = subjectMatch[1];
-          const coverUrl = `https://img1.doubanio.com/view/subject/l/public/s${bookId}.jpg`;
-          const coverResponse = await fetch(coverUrl, { method: 'HEAD' });
 
+        // 提取豆瓣封面小图URL，转为大图
+        const imgMatches = [...html.matchAll(/img[^>]+src=["'](https:\/\/img\d\.doubanio\.com\/view\/subject\/s\/public\/(s\d+)\.\w+)["']/g)];
+        if (imgMatches.length > 0) {
+          const coverId = imgMatches[0][2];
+          const coverUrl = `https://img1.doubanio.com/view/subject/l/public/${coverId}.jpg`;
+          console.log(`🖼️  豆瓣: 通过搜索找到封面 (${coverId})`);
+
+          const coverResponse = await fetch(coverUrl, {
+            method: 'HEAD',
+            headers: { 'Referer': 'https://book.douban.com/' },
+          });
           if (coverResponse.ok) {
-            console.log(`🖼️  豆瓣: 通过搜索找到封面`);
             return {
               coverUrl,
               title: searchTerm,

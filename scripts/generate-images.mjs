@@ -11,15 +11,19 @@ function writeProgress(current, total) {
   } catch (_) {}
 }
 import { fileURLToPath } from 'url';
-import 'dotenv/config';
+// 自动加载环境变量
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, '..');
+const { config } = await import('dotenv');
+config({ path: join(ROOT, '.env') });
+
 import { GoogleGenAI } from '@google/genai';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const IMAGE_DIR = join(__dirname, '../public/images');
+const IMAGE_DIR = join(ROOT, 'public/images');
 
 // Primary and Backup models for better reliability
-const MODEL_PRIMARY = 'gemini-2.5-flash-image';
-const MODEL_BACKUP = 'gemini-3-flash-preview';
+const MODEL_PRIMARY = process.env.MODEL_IMAGE || 'gemini-3-pro-image-preview';
+const MODEL_BACKUP = process.env.MODEL_IMAGE_BACKUP || 'gemini-2.5-flash-image';
 
 // Ensure image directory exists
 if (!existsSync(IMAGE_DIR)) {

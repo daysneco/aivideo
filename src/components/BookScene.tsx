@@ -5,6 +5,8 @@ import { Scene } from '../types/book';
 import { TRANSITION_FRAMES, AUDIO_PADDING_FRAMES } from '../BookComposition';
 import { VIDEO_CONFIG } from '../config';
 import { sceneIdsWithImages, coverFileName } from '../data/imageManifest';
+import { hasIntroBackground } from '../data/introBackground';
+import { subtitleFontFamily } from '../data/subtitleFont';
 import { bookScript } from '../data/bookScript';
 
 // ──────────────────────────────────────────────
@@ -22,7 +24,11 @@ const renderHighlightedText = (content: string, highlightKeywords?: string[]) =>
   return parts.map((part, i) => {
     const isKeyword = keywords.includes(part);
     return (
-      <span key={i} style={{ color: isKeyword ? '#fbbf24' : 'inherit' }}>
+      <span key={i} style={{ 
+        color: isKeyword ? '#fbbf24' : 'inherit',
+        fontWeight: isKeyword ? '900' : 'inherit',
+        textShadow: isKeyword ? '0 0 15px rgba(251, 191, 36, 0.6)' : 'inherit'
+      }}>
         {part}
       </span>
     );
@@ -34,9 +40,10 @@ const renderHighlightedText = (content: string, highlightKeywords?: string[]) =>
 // ──────────────────────────────────────────────
 const Subtitle: React.FC<{ 
   text: string; 
+  textEn?: string;
   totalFrames: number; 
   highlightKeywords?: string[];
-}> = ({ text, totalFrames, highlightKeywords }) => {
+}> = ({ text, textEn, totalFrames, highlightKeywords }) => {
   const frame = useCurrentFrame();
   const audioFrames = totalFrames - AUDIO_PADDING_FRAMES;
 
@@ -61,6 +68,26 @@ const Subtitle: React.FC<{
     return result;
   }, [text]);
 
+  const segmentsEn = useMemo(() => {
+    if (!textEn) return [];
+    const words = textEn.split(' ');
+    const totalChars = text.length;
+    const result: string[] = [];
+    let currentWordIdx = 0;
+    
+    segments.forEach((seg, i) => {
+      if (i === segments.length - 1) {
+        result.push(words.slice(currentWordIdx).join(' '));
+      } else {
+        const ratio = seg.length / totalChars;
+        const count = Math.max(1, Math.round(words.length * ratio));
+        result.push(words.slice(currentWordIdx, currentWordIdx + count).join(' '));
+        currentWordIdx += count;
+      }
+    });
+    return result;
+  }, [text, textEn, segments]);
+
   const segmentTimings = useMemo(() => {
     const weights = segments.map(s => s.length + (s.match(/[。！？，、；：]/g)?.length || 0) * 2);
     const totalWeight = weights.reduce((a, b) => a + b, 0);
@@ -79,6 +106,7 @@ const Subtitle: React.FC<{
   }
 
   const currentSegment = (segments[currentIndex] || '').replace(/[。！？，、；：,.!?;:]+$/, '');
+  const currentSegmentEn = segmentsEn[currentIndex] || '';
   const keywords = (highlightKeywords && highlightKeywords.length > 0) ? highlightKeywords : [];
 
   const textScale = spring({
@@ -93,17 +121,57 @@ const Subtitle: React.FC<{
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', opacity }}>
-      <p style={{
-          fontSize: 64, fontWeight: '900', color: '#FFFFFF', textAlign: 'center', lineHeight: 1.1,
-          padding: `10px 20px`, maxWidth: '100%', margin: 0,
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          textShadow: '0 0 10px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.8)',
-          backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12,
-          transform: `scale(${interpolate(textScale, [0, 1], [0.95, 1])})`
-        }}>
-        {renderHighlightedText(currentSegment, keywords)}
-      </p>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      width: '100%', 
+      padding: `0 ${VIDEO_CONFIG.LAYOUT.SUBTITLE_PADDING_H}px`,
+      boxSizing: 'border-box',
+      opacity 
+    }}>
+      <div style={{
+        padding: `12px 24px`, 
+        backgroundColor: 'rgba(0,0,0,0.5)', 
+        borderRadius: 16,
+        textShadow: '0 0 10px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.8)',
+        transform: `scale(${interpolate(textScale, [0, 1], [0.95, 1])})`,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+      }}>
+        <p style={{
+            fontFamily: subtitleFontFamily,
+            fontSize: VIDEO_CONFIG.LAYOUT.SUBTITLE_CN_SIZE, 
+            fontWeight: '900', 
+            color: '#FFFFFF', 
+            textAlign: 'center', 
+            lineHeight: 1.1,
+            maxWidth: '100%', 
+            margin: 0,
+            whiteSpace: 'pre-wrap', 
+            wordBreak: 'break-word',
+          }}>
+          {renderHighlightedText(currentSegment, keywords)}
+        </p>
+        {currentSegmentEn && (
+          <p style={{
+            fontFamily: subtitleFontFamily,
+            fontSize: VIDEO_CONFIG.LAYOUT.SUBTITLE_EN_SIZE,
+            fontWeight: '600',
+            color: '#e2e8f0', 
+            textAlign: 'center',
+            lineHeight: 1.2,
+            marginTop: 8,
+            maxWidth: '100%',
+            margin: '8px 0 0 0',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}>
+            {currentSegmentEn}
+          </p>
+        )}
+      </div>
     </div>
   );
 };
@@ -141,35 +209,36 @@ const CinematicScene: React.FC<{ item: Scene; zoomDirection: 'in' | 'out' | 'lef
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform }}>
         {item.id === 'intro-book' ? (
           <>
-            {/* Blurred background */}
-            <Img 
-              src={imageSrc} 
-              style={{ 
+            {/* Background: AI landscape or blurred cover */}
+            <Img
+              src={hasIntroBackground ? staticFile('intro_background.png') : imageSrc}
+              style={{
                 position: 'absolute',
                 top: 0, left: 0,
-                width: '100%', 
-                height: '100%', 
+                width: '100%',
+                height: '100%',
                 objectFit: 'cover',
-                filter: 'blur(30px) brightness(0.5)',
-                transform: 'scale(1.2)'
-              }} 
+                ...(hasIntroBackground
+                  ? { filter: 'brightness(0.7)' }
+                  : { filter: 'blur(30px) brightness(0.5)', transform: 'scale(1.2)' })
+              }}
             />
-            {/* Real Cover centered */}
+            {/* Book cover on top */}
             <div style={{
               position: 'absolute',
               top: 0, left: 0, width: '100%', height: '100%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              paddingBottom: '200px' // adjust for subtitle space
+              paddingBottom: '200px'
             }}>
-              <Img 
-                src={imageSrc} 
-                style={{ 
-                  width: '75%', 
+              <Img
+                src={imageSrc}
+                style={{
+                  width: '75%',
                   maxHeight: '65%',
                   objectFit: 'contain',
                   borderRadius: '24px',
                   boxShadow: '0 30px 60px rgba(0,0,0,0.8)'
-                }} 
+                }}
               />
             </div>
           </>
@@ -192,7 +261,12 @@ const CinematicScene: React.FC<{ item: Scene; zoomDirection: 'in' | 'out' | 'lef
       }} />
 
       <div style={{ position: 'absolute', bottom: 300, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 10 }}>
-        <Subtitle text={item.narration} totalFrames={item.durationInFrames} highlightKeywords={bookScript.highlightKeywords} />
+        <Subtitle 
+          text={item.narration} 
+          textEn={item.narrationEn}
+          totalFrames={item.durationInFrames} 
+          highlightKeywords={bookScript.highlightKeywords} 
+        />
       </div>
     </div>
   );
@@ -217,7 +291,12 @@ const FragmentedScene: React.FC<{ item: Scene }> = ({ item }) => {
           <Img src={imageSrc} style={{ width: '100%', height: '200%', objectFit: 'cover', top: '-100%', position: 'relative', transform: `translateY(${interpolate(splitProgress, [0, 1], [20, 0])}%)` }} />
        </div>
        <div style={{ position: 'absolute', bottom: 300, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 10 }}>
-        <Subtitle text={item.narration} totalFrames={item.durationInFrames} highlightKeywords={bookScript.highlightKeywords} />
+        <Subtitle 
+          text={item.narration} 
+          textEn={item.narrationEn}
+          totalFrames={item.durationInFrames} 
+          highlightKeywords={bookScript.highlightKeywords} 
+        />
       </div>
     </div>
   );

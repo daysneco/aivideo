@@ -4,7 +4,7 @@ import { bookScript } from './data/bookScript';
 import { BookScene } from './components/BookScene';
 
 export const TRANSITION_FRAMES = 15; 
-export const AUDIO_PADDING_FRAMES = 30; 
+export const AUDIO_PADDING_FRAMES = 6; 
 
 export const BookComposition: React.FC = () => {
   const scenes = bookScript.scenes;

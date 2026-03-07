@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { spawn } from 'child_process';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, mkdirSync, readdirSync, unlinkSync, rmSync, writeFileSync, statSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, unlinkSync, rmSync, writeFileSync, statSync, copyFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -149,11 +149,26 @@ async function main() {
   clearDir(PUBLIC_AUDIO);
   clearDir(PUBLIC_IMAGES);
   
-  for (const name of ['book_cover.jpg', 'book_cover.png']) {
+  for (const name of ['book_cover.jpg', 'book_cover.png', 'book_cover_real.png']) {
     const p = join(ROOT, 'public', name);
     if (existsSync(p)) unlinkSync(p);
   }
   console.log('   Done. Starting fresh for this book.\n');
+
+  // Step 0.6: Pick a random subtitle font from public
+  const publicDir = join(ROOT, 'public');
+  const fontExts = ['.ttf', '.otf'];
+  const fontFiles = (readdirSync(publicDir) || []).filter(f => fontExts.some(ext => f.toLowerCase().endsWith(ext)));
+  const chosenFont = fontFiles.length > 0 ? fontFiles[Math.floor(Math.random() * fontFiles.length)] : 'LXGWWenKai.ttf';
+  const fontFamily = chosenFont.replace(/\.[^.]+$/, '');
+  const subtitleFontTs = join(ROOT, 'src', 'data', 'subtitleFont.ts');
+  writeFileSync(subtitleFontTs, `/**
+ * 当前视频使用的字幕字体，由 create-book-video 在生成时随机从 public 下字体中选取并写入。
+ */
+export const subtitleFontFile = '${chosenFont}';
+export const subtitleFontFamily = '${fontFamily}';
+`, 'utf-8');
+  console.log('🔤 Subtitle font: ' + chosenFont + ' (family: ' + fontFamily + ')\n');
 
   try {
     // Step 1: Generate Script
@@ -162,32 +177,34 @@ async function main() {
     const quotedArgs = filteredArgs.map(a => `"${String(a).replace(/"/g, '\\"')}"`).join(' ');
     await runCommand(`node "${join(__dirname, 'generate-book-script.mjs')}" ${quotedArgs}`);
 
-    // Step 1.5: Generate AI book cover
-    writeProgress('Step 1.5/5 - Generating AI book cover...');
-    console.log('\n🤖 [Step 1.5/5] Generating AI Book Cover...');
-
-    // Generate AI cover in book-specific directory
-    const proc = spawn('node', [join(__dirname, 'generate-cover-by-title.mjs'), bookName, bookOutputDir], {
-      stdio: 'inherit',
-      shell: false
-    });
-
-    await new Promise((resolve, reject) => {
-      proc.on('close', (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`AI cover generation failed with code ${code}`));
-      });
-    });
-
-    // Copy AI generated cover to public directory for Remotion
-    const aiCoverFile = join(bookOutputDir, `${sanitizedBookName}_ai_cover.png`);
+    // Step 1.5: Fetch real book cover from online sources
+    writeProgress('Step 1.5/5 - Fetching real book cover...');
+    console.log('\n📚 [Step 1.5/5] Fetching Real Book Cover...');
     const publicCoverPath = join(ROOT, 'public', 'book_cover.png');
-    if (existsSync(aiCoverFile)) {
-      await runCommand(`cp "${aiCoverFile}" "${publicCoverPath}"`);
-      console.log(`   ✅ AI封面已复制到 public/book_cover.png`);
-    } else {
-      console.warn(`   ⚠️ AI封面文件未找到: ${aiCoverFile}`);
+    const realCoverPath = join(ROOT, 'public', 'book_cover_real.png');
+
+    try {
+      await runCommand(`node "${join(__dirname, 'fetch-book-cover-multi.mjs')}" "${bookName}"`);
+    } catch (e) {
+      // fetch script may exit non-zero
     }
+
+    if (existsSync(realCoverPath)) {
+      await runCommand(`cp "${realCoverPath}" "${publicCoverPath}"`);
+      console.log(`   ✅ 真实封面已获取并复制到 public/book_cover.png`);
+    } else {
+      writeProgress('Failed: 未找到真实书籍封面');
+      console.error('\n❌ 未找到真实书籍封面，流程终止。');
+      console.error('💡 请手动将封面图片放到 public/book_cover.png 后重新运行，');
+      console.error('   或运行以下命令单独获取封面：');
+      console.error(`   node scripts/fetch-book-cover-multi.mjs "${bookName}"`);
+      process.exit(1);
+    }
+
+    // Step 1.6: Generate AI landscape background for intro-book scene
+    writeProgress('Step 1.6/5 - Generating intro background...');
+    console.log('\n🖼️ [Step 1.6/5] Generating Intro Background (AI landscape)...');
+    await runCommand(`node "${join(__dirname, 'generate-intro-background.mjs')}"`);
 
     // Step 2: Generate Audio
     process.env.VIDEO_PROGRESS_STEP = 'Step 2/5 - Generating audio';
@@ -207,45 +224,37 @@ async function main() {
     await runCommand(`node "${join(__dirname, 'generate-images.mjs')}"`);
 
     // Step 4: Render Video
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
-    const outputFile = join(bookOutputDir, `${sanitizedBookName}_${timestamp}${isTestMode ? '_test' : ''}.mp4`);
+    const outputFileBase = join(bookOutputDir, `视频_《${sanitizedBookName}》.mp4`);
+    const outputFile = outputFileBase;
     writeProgress('Step 4/5 - Rendering video...');
     console.log(`\n🎞️ [Step 4/5] Rendering Video${isTestMode ? ' (Test Mode - First 3 scenes)' : ''}...`);
 
     // 在测试模式下渲染一个简短的测试视频（约150帧，5秒）
     if (isTestMode) {
-      console.log('🎯 测试模式: 渲染约5秒的测试视频，展示64碎片飞入特效');
+      console.log('🎯 测试模式: 渲染约5秒的测试视频');
       await runRenderWithProgressTest(outputFile);
     } else {
       await runRenderWithProgress(outputFile);
-    }
-
-    // Step 5: Generate Covers (Classic + 3:4 Tech Style)
-    writeProgress('Step 5/5 - Generating covers...');
-    console.log('\n🖼️ [Step 5/5] Generating Covers...');
-
-    // 生成经典风格封面
-    const classicCoverFile = join(bookOutputDir, `${sanitizedBookName}_${timestamp}_classic_cover.png`);
-    console.log('   📸 Generating Classic cover...');
-    await runCommand(`npx remotion still src/index.ts ClassicCover "${classicCoverFile}"`);
-
-    // 生成3:4高科技感封面
-    const techCoverFile = join(bookOutputDir, `${sanitizedBookName}_${timestamp}_3x4_cover.png`);
-    console.log('   🤖 Generating 3:4 Tech cover...');
-    await runCommand(`node "${join(__dirname, 'generate-xiaohongshu-3x4-cover-auto.mjs')}"`);
-
-    // 移动生成的3:4封面到标准命名
-    const autoTechCover = `output/auto_xiaohongshu_3x4.png`; // 脚本默认输出名
-    if (existsSync(autoTechCover)) {
-      await runCommand(`mv "${autoTechCover}" "${techCoverFile}"`);
-    } else {
-      // 查找智能生成的封面
-      const files = readdirSync('output').filter(f => f.includes('_xiaohongshu_3x4.png'));
-      if (files.length > 0) {
-        const latestCover = files.sort((a, b) => statSync(`output/${b}`).mtime - statSync(`output/${a}`).mtime)[0];
-        await runCommand(`mv "output/${latestCover}" "${techCoverFile}"`);
+      writeProgress('Step 4.5/5 - Compressing video...');
+      console.log('\n📦 [Step 4.5/5] Compressing video (<50MB)...');
+      await runCommand(`node "${join(__dirname, 'compress-video.mjs')}" "${outputFile}"`);
+      // 压缩脚本会自动生成 _compressed.mp4，我们需要覆盖原文件并重命名
+      const compressedFile = outputFile.replace('.mp4', '_compressed.mp4');
+      if (existsSync(compressedFile)) {
+        rmSync(outputFile);
+        copyFileSync(compressedFile, outputFile);
+        rmSync(compressedFile);
       }
     }
+
+    // Step 5: Generate Covers (3:4 Real Cover Style)
+    writeProgress('Step 5/5 - Generating covers...');
+    console.log('\n🖼️ [Step 5/5] Generating Real Cover (3:4) via Remotion...');
+
+    const finalCoverFile = join(bookOutputDir, `封面_《${sanitizedBookName}》.png`);
+    
+    // 使用新的 RealCoverXhs 构图生成封面
+    await runCommand(`npx remotion still src/index.ts RealCoverXhs "${finalCoverFile}"`);
 
     // 生成小红书标题和描述
     writeProgress('Step 5.5/5 - Generating Xiaohongshu content...');
@@ -258,15 +267,30 @@ async function main() {
     if (existsSync(uploadPackageDir)) {
       const xhsFiles = readdirSync(uploadPackageDir).filter(f => f.includes('xiaohongshu'));
       for (const file of xhsFiles) {
-        await runCommand(`mv "${join(uploadPackageDir, file)}" "${bookOutputDir}"`);
+        const dest = join(bookOutputDir, file === 'xiaohongshu.txt' ? 'xiaohongshu.txt' : file);
+        if (existsSync(dest)) rmSync(dest);
+        await runCommand(`mv "${join(uploadPackageDir, file)}" "${dest}"`);
       }
+    }
+
+    // Copy all generated assets to output/书名 (audio, images, covers)
+    writeProgress('Copying assets to book output dir...');
+    const outAudio = join(bookOutputDir, 'audio');
+    const outImages = join(bookOutputDir, 'images');
+    if (!existsSync(outAudio)) mkdirSync(outAudio, { recursive: true });
+    if (!existsSync(outImages)) mkdirSync(outImages, { recursive: true });
+    
+    // ... rest of the copy logic ...
+    const coverPaths = ['book_cover.png', 'book_cover_real.png', 'intro_background.png'];
+    for (const name of coverPaths) {
+      const src = join(ROOT, 'public', name);
+      if (existsSync(src)) copyFileSync(src, join(bookOutputDir, name));
     }
 
     writeProgress('Done!');
     console.log(`\n✅ All Done!`);
     console.log(`   📹 Video: ${outputFile}`);
-    console.log(`   🖼️ Classic Cover: ${classicCoverFile}`);
-    console.log(`   🚀 3:4 Tech Cover: ${techCoverFile}`);
+    console.log(`   🚀 3:4 Cover: ${finalCoverFile}`);
     console.log(`   📱 Xiaohongshu Content: ${xiaohongshuFile}`);
     console.log(`\n   (Progress was written to output/video_progress.txt)\n`);
 
