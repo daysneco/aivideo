@@ -6,6 +6,7 @@
  */
 
 import { existsSync, mkdirSync } from 'fs';
+import * as cheerio from 'cheerio';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import 'dotenv/config';
@@ -49,7 +50,12 @@ async function fetchOpenLibraryCover(bookTitle) {
     console.log(`📚 尝试 OpenLibrary API...`);
 
     // 清理书名用于搜索
-    const searchTerm = bookTitle.replace(/[《》]/g, '').trim();
+    const searchTerm = bookTitle
+      .replace(/[《》]/g, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .replace(/\s*\[.*?\]/g, '')
+      .replace(/（.*?）/g, '')
+      .trim();
     const encodedTitle = encodeURIComponent(searchTerm);
 
     // 搜索书籍
@@ -157,24 +163,33 @@ async function fetchOpenLibraryCover(bookTitle) {
 // ==========================================
 async function fetchDuckDuckGoImagesCover(bookTitle) {
   try {
-    console.log(`🦆 尝试 DuckDuckGo Images 搜索...`);
-
+    console.log(`🦆 正在通过 DuckDuckGo 搜索: "${bookTitle}"`);
     const searchTerm = bookTitle.replace(/[《》]/g, '').trim();
-    const query = `${searchTerm} book cover 3D`;
-
-    // DuckDuckGo Images搜索URL
-    const searchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`;
-
-    console.log(`🔍 搜索关键词: "${query}"`);
-
-    // 注意：DuckDuckGo Images需要特殊处理，这里暂时返回null
-    // 实际实现需要解析HTML或使用其他方法
-    console.log(`⚠️ DuckDuckGo Images搜索需要特殊处理，暂时跳过`);
-
+    const searchUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(searchTerm + ' book cover')}`;
+    
+    const res = await fetch(searchUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+    });
+    
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    
+    let imageUrl = null;
+    $('img').each((i, el) => {
+      const src = $(el).attr('src');
+      if (src && (src.includes('covers.openlibrary.org') || src.includes('doubanio.com') || src.includes('googleusercontent.com') || src.includes('books.google.com'))) {
+        imageUrl = src.replace('http:', 'https:');
+        return false;
+      }
+    });
+    
+    if (imageUrl) {
+       console.log(`✅ DuckDuckGo: 找到潜在结果: ${imageUrl}`);
+       return { coverUrl: imageUrl, source: 'DuckDuckGo (Crawl)' };
+    }
     return null;
-
   } catch (error) {
-    console.log(`❌ DuckDuckGo Images搜索错误: ${error.message}`);
+    console.log(`❌ DuckDuckGo 搜索错误: ${error.message}`);
     return null;
   }
 }
@@ -186,7 +201,12 @@ async function fetchEnhancedCover(bookTitle) {
   try {
     console.log(`🎨 尝试增强封面获取...`);
 
-    const searchTerm = bookTitle.replace(/[《》]/g, '').trim();
+    const searchTerm = bookTitle
+      .replace(/[《》]/g, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .replace(/\s*\[.*?\]/g, '')
+      .replace(/（.*?）/g, '')
+      .trim();
 
     // 为特定书籍提供已知的高质量封面
     const knownCovers = {
@@ -275,7 +295,12 @@ async function fetchGoogleImagesCover(bookTitle) {
   try {
     console.log(`🖼️ 尝试 Google Images 搜索 (优先3D)...`);
 
-    const searchTerm = bookTitle.replace(/[《》]/g, '').trim();
+    const searchTerm = bookTitle
+      .replace(/[《》]/g, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .replace(/\s*\[.*?\]/g, '')
+      .replace(/（.*?）/g, '')
+      .trim();
 
     // 扩展搜索关键词，更好地找到3D封面
     const searchQueries = [
@@ -467,7 +492,12 @@ async function fetchGoogleBooksCover(bookTitle) {
   try {
     console.log(`📚 尝试 Google Books API...`);
 
-    const searchTerm = bookTitle.replace(/[《》]/g, '').trim();
+    const searchTerm = bookTitle
+      .replace(/[《》]/g, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .replace(/\s*\[.*?\]/g, '')
+      .replace(/（.*?）/g, '')
+      .trim();
     const encodedTitle = encodeURIComponent(searchTerm);
 
     // 尝试多个搜索查询
@@ -552,7 +582,12 @@ async function fetchWikipediaCover(bookTitle) {
   try {
     console.log(`📚 尝试 维基百科 API...`);
 
-    const searchTerm = bookTitle.replace(/[《》]/g, '').trim();
+    const searchTerm = bookTitle
+      .replace(/[《》]/g, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .replace(/\s*\[.*?\]/g, '')
+      .replace(/（.*?）/g, '')
+      .trim();
     const encodedTitle = encodeURIComponent(searchTerm);
 
     // 尝试多个维基百科语言版本
@@ -608,74 +643,34 @@ async function fetchDoubanCover(bookTitle) {
   try {
     console.log(`📚 尝试豆瓣搜索...`);
 
-    // 使用已有的豆瓣ID映射（中文书籍）
-    const knownBooks = {
-      '小狗钱钱': '35295592',
-      '富爸爸穷爸爸': '1033778',
-      '思考快与慢': '10785583',
-      '纳瓦尔宝典': '35876121',
-      '原则': '27608239',
-      '如何阅读一本书': '1013208',
-      '被讨厌的勇气': '26986954',
-      'The Courage to Be Disliked': '26986954', // 英文映射到中文ID
-    };
+    // 修复 searchTerm 未定义的问题
+    const searchTerm = bookTitle
+      .replace(/[《》]/g, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .replace(/\s*\[.*?\]/g, '')
+      .replace(/（.*?）/g, '')
+      .trim();
 
-    const searchTerm = bookTitle.replace(/[《》]/g, '').trim();
+    // 实时搜索豆瓣 (摒弃过期的knownBooks映射)
+    console.log(`🔍 豆瓣: 实时搜索中文书籍 "${searchTerm}"`);
 
-    // 首先尝试已知书籍映射
-    if (knownBooks[searchTerm]) {
-      const bookId = knownBooks[searchTerm];
-      console.log(`✅ 豆瓣: 使用已知ID ${bookId} for "${searchTerm}"`);
-
-      const coverUrl = `https://img1.doubanio.com/view/subject/l/public/s${bookId}.jpg`;
-      const coverResponse = await fetch(coverUrl, { method: 'HEAD' });
-
-      if (coverResponse.ok) {
-        console.log(`🖼️  豆瓣: 封面URL有效`);
-        return {
-          coverUrl,
-          title: searchTerm,
-          author: '豆瓣',
-          source: 'Douban'
-        };
+    const searchUrl = `https://www.douban.com/search?cat=1001&q=${encodeURIComponent(searchTerm)}`;
+    const searchResponse = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://www.douban.com/',
       }
-    }
+    });
 
-    // 通过豆瓣通用搜索提取封面图片
-    if (detectLanguage(bookTitle) === 'zh') {
-      console.log(`🔍 豆瓣: 搜索中文书籍 "${searchTerm}"`);
-
-      const searchUrl = `https://www.douban.com/search?cat=1001&q=${encodeURIComponent(searchTerm)}`;
-      const searchResponse = await fetch(searchUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Referer': 'https://www.douban.com/',
-        }
-      });
-
-      if (searchResponse.ok) {
-        const html = await searchResponse.text();
-
-        // 提取豆瓣封面小图URL，转为大图
-        const imgMatches = [...html.matchAll(/img[^>]+src=["'](https:\/\/img\d\.doubanio\.com\/view\/subject\/s\/public\/(s\d+)\.\w+)["']/g)];
-        if (imgMatches.length > 0) {
-          const coverId = imgMatches[0][2];
-          const coverUrl = `https://img1.doubanio.com/view/subject/l/public/${coverId}.jpg`;
-          console.log(`🖼️  豆瓣: 通过搜索找到封面 (${coverId})`);
-
-          const coverResponse = await fetch(coverUrl, {
-            method: 'HEAD',
-            headers: { 'Referer': 'https://book.douban.com/' },
-          });
-          if (coverResponse.ok) {
-            return {
-              coverUrl,
-              title: searchTerm,
-              author: '豆瓣搜索',
-              source: 'Douban'
-            };
-          }
-        }
+    if (searchResponse.ok) {
+      const html = await searchResponse.text();
+      // 解析结果并提取封面
+      const imgMatches = [...html.matchAll(/img[^>]+src=["'](https:\/\/img\d\.doubanio\.com\/view\/subject\/s\/public\/(s\d+)\.\w+)["']/g)];
+      if (imgMatches.length > 0) {
+        const coverId = imgMatches[0][2];
+        const coverUrl = `https://img1.doubanio.com/view/subject/l/public/${coverId}.jpg`;
+        console.log(`🖼️  豆瓣: 找到封面 ID ${coverId}`);
+        return { coverUrl, title: searchTerm, author: '豆瓣实时搜索', source: 'Douban' };
       }
     }
 
@@ -699,15 +694,16 @@ function detectLanguage(text) {
 
 function getSearchStrategies(bookTitle) {
   // 统一优先级：增强封面 → DuckDuckGo Images → Google Images → OpenLibrary → Google Books → 维基百科 → 豆瓣
-  return [
-    { source: 'Enhanced Cover', title: bookTitle },
-    { source: 'DuckDuckGo Images', title: bookTitle },
-    { source: 'Google Images', title: bookTitle },
-    { source: 'OpenLibrary', title: bookTitle },
-    { source: 'Google Books', title: bookTitle },
-    { source: '维基百科', title: bookTitle },
-    { source: '豆瓣', title: bookTitle }
-  ];
+    return [
+      { source: 'Enhanced Cover', title: bookTitle },
+      { source: 'DuckDuckGo Images', title: bookTitle },
+      { source: 'Google Images', title: bookTitle },
+      { source: 'OpenLibrary', title: bookTitle },
+      { source: '维基百科', title: bookTitle },
+      { source: '豆瓣', title: bookTitle },
+      { source: 'Baidu', title: bookTitle }
+    ];
+
 }
 
 // ==========================================
@@ -754,6 +750,30 @@ async function fetchUserProvidedGoogleBooksCover(bookTitle) {
 // ==========================================
 // 多源封面获取主函数
 // ==========================================
+async function fetchBaiduCover(bookTitle) {
+  try {
+    console.log(`🔍 正在通过 Baidu 搜索: "${bookTitle}"`);
+    const searchTerm = bookTitle.replace(/[《》]/g, '').trim();
+    const searchUrl = `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(searchTerm + ' 书籍封面')}`;
+    
+    const res = await fetch(searchUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+    });
+    
+    const html = await res.text();
+    // 百度图片搜索通常将图片URL包含在特定的JSON结构中
+    const imgMatch = html.match(/"objURL":"(.*?)"/);
+    if (imgMatch && imgMatch[1]) {
+      console.log(`✅ Baidu: 找到图片: ${imgMatch[1]}`);
+      return { coverUrl: imgMatch[1], source: 'Baidu (Crawl)' };
+    }
+    return null;
+  } catch (error) {
+    console.log(`❌ Baidu 搜索错误: ${error.message}`);
+    return null;
+  }
+}
+
 async function fetchBookCoverMultiSource(bookTitle) {
   const language = detectLanguage(bookTitle);
   const searchStrategies = getSearchStrategies(bookTitle);
@@ -761,13 +781,6 @@ async function fetchBookCoverMultiSource(bookTitle) {
   console.log(`\n🔍 开始多源封面获取: "${bookTitle}"`);
   console.log(`🌍 检测语言: ${language === 'zh' ? '中文' : '英文'}`);
   console.log(`📋 搜索策略: ${searchStrategies.map(s => s.source).join(' → ')}\n`);
-
-  // 首先尝试用户提供的直接URL（如果有的话）
-  const directResult = await fetchUserProvidedGoogleBooksCover(bookTitle);
-  if (directResult) {
-    console.log(`🎉 直接URL获取成功！`);
-    return directResult;
-  }
 
   // 根据策略顺序尝试每个数据源
   for (const strategy of searchStrategies) {
@@ -789,14 +802,14 @@ async function fetchBookCoverMultiSource(bookTitle) {
       case 'OpenLibrary':
         result = await fetchOpenLibraryCover(title);
         break;
-      case 'Google Books':
-        result = await fetchGoogleBooksCover(title);
-        break;
       case '维基百科':
         result = await fetchWikipediaCover(title);
         break;
       case '豆瓣':
         result = await fetchDoubanCover(title);
+        break;
+      case 'Baidu':
+        result = await fetchBaiduCover(title);
         break;
     }
 

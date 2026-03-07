@@ -18,6 +18,7 @@ const { config } = await import('dotenv');
 config({ path: join(ROOT, '.env') });
 
 import { GoogleGenAI } from '@google/genai';
+import { compositeCover } from './composite-cover.mjs';
 
 const IMAGE_DIR = join(ROOT, 'public/images');
 
@@ -230,12 +231,15 @@ async function main() {
   if (!force && hasCover) {
     console.log('⏭ Book cover already exists, skipping');
   } else {
-    console.log('🖌 Generating book cover illustration...');
+    console.log('🖌 Generating dynamic book cover illustration...');
     const coverScene = {
-      title: "Book Cover",
-      narration: `A representative illustration for the book "${bookTitle}". It should capture the essence of the book's wisdom and philosophy.`
+      title: "Book Background",
+      narration: `Professional cinematic abstract background for book cover, themes of "${bookTitle}", 8k resolution, artistic digital painting, vibrant elegant colors, minimalist composition, dramatic lighting, no text, no characters.`
     };
-    await generateImage(ai, coverScene, bookTitle, coverPathPng);
+    const tempBg = join(ROOT, 'public/temp_bg.png');
+    await generateImage(ai, coverScene, bookTitle, tempBg);
+    const realCover = join(ROOT, 'public/book_cover_real.png');
+    await compositeCover(realCover, tempBg, coverPathPng);
     console.log('✓ Saved to book_cover.png');
   }
 }

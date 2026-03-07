@@ -208,40 +208,16 @@ const CinematicScene: React.FC<{ item: Scene; zoomDirection: 'in' | 'out' | 'lef
     <div style={{ flex: 1, backgroundColor: '#000', position: 'relative', overflow: 'hidden', opacity: enterOpacity }}>
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform }}>
         {item.id === 'intro-book' ? (
-          <>
-            {/* Background: AI landscape or blurred cover */}
-            <Img
-              src={hasIntroBackground ? staticFile('intro_background.png') : imageSrc}
-              style={{
-                position: 'absolute',
-                top: 0, left: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                ...(hasIntroBackground
-                  ? { filter: 'brightness(0.7)' }
-                  : { filter: 'blur(30px) brightness(0.5)', transform: 'scale(1.2)' })
-              }}
-            />
-            {/* Book cover on top */}
-            <div style={{
+          <Img
+            src={imageSrc}
+            style={{
               position: 'absolute',
-              top: 0, left: 0, width: '100%', height: '100%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              paddingBottom: '200px'
-            }}>
-              <Img
-                src={imageSrc}
-                style={{
-                  width: '75%',
-                  maxHeight: '65%',
-                  objectFit: 'contain',
-                  borderRadius: '24px',
-                  boxShadow: '0 30px 60px rgba(0,0,0,0.8)'
-                }}
-              />
-            </div>
-          </>
+              top: 0, left: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
         ) : (
           <Img 
             src={imageSrc} 
