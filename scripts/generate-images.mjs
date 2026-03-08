@@ -234,7 +234,7 @@ async function main() {
     console.log('🖌 Generating dynamic book cover illustration...');
     const coverScene = {
       title: "Book Background",
-      narration: `Professional cinematic abstract background for book cover, themes of "${bookTitle}", 8k resolution, artistic digital painting, vibrant elegant colors, minimalist composition, dramatic lighting, no text, no characters.`
+      narration: `A high-quality, cinematic, wide-angle landscape photograph or artistic digital painting as a book cover background. Theme: "${bookTitle}". Scenes like majestic mountains, flowing rivers, deep forests, or the expansive universe. High resolution, dramatic lighting, sharp details, artistic color palette, no text, no characters.`
     };
     const tempBg = join(ROOT, 'public/temp_bg.png');
     await generateImage(ai, coverScene, bookTitle, tempBg);

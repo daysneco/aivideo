@@ -182,7 +182,7 @@ const Subtitle: React.FC<{
 
 const CinematicScene: React.FC<{ item: Scene; zoomDirection: 'in' | 'out' | 'left' | 'right' }> = ({ item, zoomDirection }) => {
   const frame = useCurrentFrame();
-  const imageSrc = item.id === 'intro-book' ? staticFile(coverFileName) : staticFile(`images/${item.id}.png`);
+  const imageSrc = item.id === 'intro-book' ? staticFile('book_cover.png') : staticFile(`images/${item.id}.png`);
 
   const enterOpacity = interpolate(frame, [0, 10], [0, 1], { extrapolateRight: 'clamp' });
   
@@ -208,16 +208,21 @@ const CinematicScene: React.FC<{ item: Scene; zoomDirection: 'in' | 'out' | 'lef
     <div style={{ flex: 1, backgroundColor: '#000', position: 'relative', overflow: 'hidden', opacity: enterOpacity }}>
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform }}>
         {item.id === 'intro-book' ? (
-          <Img
-            src={imageSrc}
-            style={{
-              position: 'absolute',
-              top: 0, left: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
+          <div style={{
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+            backgroundColor: '#1a1a1a',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <Img
+              src={imageSrc}
+              style={{
+                width: '70%', 
+                height: 'auto',
+                objectFit: 'contain',
+                filter: 'drop-shadow(0 20px 30px rgba(0,0,0,0.5))'
+              }}
+            />
+          </div>
         ) : (
           <Img 
             src={imageSrc} 
@@ -251,7 +256,7 @@ const CinematicScene: React.FC<{ item: Scene; zoomDirection: 'in' | 'out' | 'lef
 // Fragmented Image Fly-In (Retained for Points)
 const FragmentedScene: React.FC<{ item: Scene }> = ({ item }) => {
   const frame = useCurrentFrame();
-  const imageSrc = item.id === 'intro-book' ? staticFile(coverFileName) : staticFile(`images/${item.id}.png`);
+  const imageSrc = item.id === 'intro-book' ? staticFile('book_cover.png') : staticFile(`images/${item.id}.png`);
   
   // Custom fragment logic would go here, using the one from V2 but maybe adding a rotation burst
   // For now, let's use a simpler "Split" effect for diversity

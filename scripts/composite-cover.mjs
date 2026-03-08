@@ -13,9 +13,9 @@ export async function compositeCover(bookCoverPath, bgPath, outputPath) {
   const cover = sharp(bookCoverPath);
 
   // 2. Prepare cover with shadow/3D effect
-  // Resize cover to fit comfortably
+  // Resize cover to a fixed width of 850px
   const processedCover = await cover
-    .resize(500)
+    .resize(850)
     .rotate(-5, { background: '#00000000' }) // Slight tilt
     .toBuffer();
 
