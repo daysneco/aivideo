@@ -49,13 +49,27 @@ Style requirements:
 - **Dynamic composition, low-angle or Dutch angle for impact**
 - Thick brush strokes, detailed textures
 - Modern tech and humanity theme
-- **CRITICAL: DO NOT RENDER ANY TEXT, CHARACTERS, OR SYMBOLS IN THE IMAGE.**
 - **CRITICAL: Center all subjects (people, animals, objects) VERTICALLY in the middle third of the image.**
+- Clean and minimal composition with plenty of breathing room`;
+
+const HAND_DRAWN_STYLE_PROMPT = `You are creating illustrations for an educational book summary video.
+
+Style requirements:
+- Minimalist hand-drawn line art illustration
+- **Lines: Rough crayon texture, black charcoal-like strokes, uneven with grainy hand-drawn feel**
+- **Style: Children's picture book aesthetic combined with a simple cartoon vector-like look**
+- A small amount of soft blue accents (only for focus or key elements)
+- Flat composition, modern tech and humanity theme
+- **Background: Solid Cream/Beige watercolor paper texture filling the entire frame, no borders, warm atmosphere**
+- **CRITICAL: Ensure the background texture spans edge-to-edge across the whole canvas. NO WHITE BORDERS.**
 - Clean and minimal composition with plenty of breathing room`;
 
 // Generate image prompt from scene data
 function buildPrompt(scene, bookTitle) {
-  return `${STYLE_PROMPT}
+  const styleType = process.env.STYLE_TYPE || 'cinematic';
+  const promptTemplate = styleType === 'hand-drawn' ? HAND_DRAWN_STYLE_PROMPT : STYLE_PROMPT;
+
+  return `${promptTemplate}
 
 Context (Book): "${bookTitle}"
 Context (Scene Title - Chinese): "${scene.title}"

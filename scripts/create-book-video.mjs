@@ -31,19 +31,14 @@ function clearDir(dirPath) {
   mkdirSync(dirPath, { recursive: true });
 }
 
-async function runCommand(command, args = []) {
+async function runCommand(command, args = [], extraEnv = {}) {
   // Check if command is a string with arguments (for simple execution)
   // or split command/args
   let cmd = command;
   let cmdArgs = args;
 
-  if (command.includes(' ') && args.length === 0) {
-     // Naive split, but good enough for 'npx remotion ...'
-     // Better to use shell: true in spawn
-  }
-
   return new Promise((resolve, reject) => {
-    const env = { ...process.env, VIDEO_PROGRESS_FILE: PROGRESS_FILE };
+    const env = { ...process.env, VIDEO_PROGRESS_FILE: PROGRESS_FILE, ...extraEnv };
     const proc = spawn(command, args, { stdio: 'inherit', shell: true, env });
     proc.on('close', (code) => {
       if (code === 0) resolve();
@@ -221,7 +216,7 @@ export const subtitleFontFamily = '${fontFamily}';
     process.env.VIDEO_PROGRESS_STEP = 'Step 3/5 - Generating images';
     writeProgress('Step 3/5 - Generating images...');
     console.log('\n🎨 [Step 3/5] Generating Images...');
-    await runCommand(`node "${join(__dirname, 'generate-images.mjs')}"`);
+    await runCommand(`node "${join(__dirname, 'generate-images.mjs')}"`, [], { STYLE_TYPE: 'hand-drawn' });
 
     // Step 4: Render Video
     const outputFileBase = join(bookOutputDir, `视频_《${sanitizedBookName}》.mp4`);

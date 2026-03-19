@@ -235,11 +235,6 @@ const CinematicScene: React.FC<{ item: Scene; zoomDirection: 'in' | 'out' | 'lef
         )}
       </div>
       
-      {/* Visual Overlays for "Punch" */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-        boxShadow: 'inset 0 0 100px rgba(0,0,0,0.8)', zIndex: 5, pointerEvents: 'none'
-      }} />
 
       <div style={{ position: 'absolute', bottom: 300, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 10 }}>
         <Subtitle 
